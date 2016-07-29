@@ -1,5 +1,10 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeOperators    #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE TypeOperators     #-}
+
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Test.QuickCheck.Arbitrary.ADT where
 
@@ -44,6 +49,77 @@ genericArbitrary = to <$> garbitrary
 -- product type it will return a list of a single arbitrary. `garbitraryList` is
 -- recurse through child sum types.
 
+
+-- garbitraryList = (:[]) . (:*:) <$> garbitrary <*> garbitrary`
+
+class GArbitraryList rep where
+  garbitraryList :: Gen [(String, rep a)]
+
+instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :+: r) where
+  garbitraryList = (++) <$> ((fmap . fmap) L1 <$> garbitraryList) <*> ((fmap . fmap) R1 <$> garbitraryList)
+
+instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r, GArbitrary []) => GArbitraryList (l :*: r) where
+  garbitraryList = fmap pure <$> garbitrary
+  --garbitraryList = (:[]) . (:*:) <$> garbitrary <*> garbitrary`
+
+--instance Arbitrary a => GArbitraryList (K1 i a) where
+--  garbitraryList = K1 <$> arbitrary --  fmap (:[]) . K1 <$> arbitrary
+
+instance (Constructor c) => GArbitraryList (M1 C c U1) where
+  garbitraryList = (fmap . fmap) M1 <$> pure [(con , U1)]
+    where
+      con = conName (undefined :: M1 C c U1 ())
+-- (selName (undefined :: M1 C x U1 ())
+--instance (Selector x , GArbitraryList rep) => GArbitraryList (M1 C x rep) where
+instance (Constructor c, Arbitrary a) => GArbitraryList (M1 C c (K1 z a)) where
+  garbitraryList = (fmap . fmap) M1 <$> (:[]) <$> ((,) <$> pure con <*> (K1 <$> arbitrary))
+    where
+      con = conName (undefined :: M1 C c (K1 z a) ())
+
+--instance GArbitraryList f => GArbitraryList (M1 D x f) where
+--  garbitraryList = garbitraryList
+
+--instance GArbitraryList f => GArbitraryList (M1 S x f) where
+--  garbitraryList = garbitraryList
+
+instance Arbitrary a => GArbitraryList (K1 i a) where
+  garbitraryList = (:[]) . ((,) "") . K1 <$> arbitrary
+
+
+instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
+  garbitraryList = (fmap . fmap) M1 <$> garbitraryList
+
+{-
+instance Selectors f => Selectors (M1 D x f) where
+  selectors _ = selectors (Proxy :: Proxy f)
+
+instance Selectors f => Selectors (M1 C x f) where
+  selectors _ = selectors (Proxy :: Proxy f)
+
+instance (Selector s, Typeable t) => Selectors (M1 S s (K1 R t)) where
+  selectors _ =
+    [ ( selName (undefined :: M1 S s (K1 R t) ()) , typeOf (undefined :: t) ) ]
+-}
+
+genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [(String,a)]
+genericArbitraryList = (fmap . fmap) to <$> garbitraryList
+
+-- let y = (:[]) <$> ((,) <$> pure "asdf" <*> x)
+
+{-
+instance (Selector s, Typeable t) => Selectors (M1 S s (K1 R t)) where
+  selectors _ =
+    [ ( selName (undefined :: M1 S s (K1 R t) ()) , typeOf (undefined :: t) ) ]
+
+-}
+
+--instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
+--  garbitraryList = fmap M1 <$> garbitraryList
+
+--genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [a]
+--genericArbitraryList = fmap to <$> garbitraryList
+
+{-
 class GArbitraryList rep where
   garbitraryList :: Gen [rep a]
 
@@ -64,3 +140,4 @@ instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
 
 genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [a]
 genericArbitraryList = fmap to <$> garbitraryList
+-}

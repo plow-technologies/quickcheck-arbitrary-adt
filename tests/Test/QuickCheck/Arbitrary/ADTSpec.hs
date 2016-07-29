@@ -3,6 +3,8 @@
 
 module Test.QuickCheck.Arbitrary.ADTSpec (main, spec) where
 
+import           Control.Monad.IO.Class
+
 import           Control.Lens
 import           Data.Maybe          (isJust)
 import           GHC.Generics
@@ -37,7 +39,8 @@ spec :: Spec
 spec =
   describe "QuickCheck Arbitrary ADT" $ do
     it "genericArbitraryList of a sum type creates an instance with each constructor" $ do
-      sumTypes <- generate (genericArbitraryList :: Gen [SumType])
+      sumTypes <- generate (genericArbitraryList :: Gen [(String,SumType)])
+      {-
       and
         [ or $ isJust . preview _SumType1 <$> sumTypes
         , or $ isJust . preview _SumType2 <$> sumTypes
@@ -45,10 +48,17 @@ spec =
         , or $ isJust . preview _SumType4 <$> sumTypes
         , length sumTypes == 4
         ] `shouldBe` True
+      -}
+      liftIO $ print sumTypes
+      False `shouldBe` True
 
     it "genericArbitraryList of a product type creates a single instance" $ do
-      productTypes <- generate (genericArbitraryList :: Gen [ProductType])
-      length productTypes `shouldBe` 1
 
+      productTypes <- generate (genericArbitraryList :: Gen [(String,ProductType)])
+      {-
+      length productTypes `shouldBe` 1
+      -}
+      liftIO $ print productTypes
+      True `shouldBe` False
 main :: IO ()
 main = hspec spec
