@@ -18,17 +18,11 @@ import           Test.QuickCheck.Arbitrary.ADT
 data BareSumType = BareSumType
   deriving (Eq,Generic,Show)
 
-instance Arbitrary BareSumType where
-  arbitrary = genericArbitrary
-
 data SumType = SumType1 Int
              | SumType2 String Int
              | SumType3  String [Int] Double
              | SumType4 String [String] [Int] Double
   deriving (Eq,Generic,Show)
-
-instance Arbitrary SumType where
-  arbitrary = genericArbitrary
 
 $(makePrisms ''SumType)
 
@@ -37,40 +31,30 @@ data ProductType = ProductType {
 , age  :: Int
 } deriving (Eq,Generic,Show)
 
---instance Arbitrary ProductType where
---  arbitrary = genericArbitrary
-
---instance GArbitrary []
---instance GArbitraryList []
-
 
 spec :: Spec
 spec =
   describe "QuickCheck Arbitrary ADT" $ do
     it "genericArbitraryList of a sum type creates an instance with each constructor" $ do
-      bareSumType <- generate (genericArbitraryList :: Gen [(String,BareSumType)])
-      sumTypes <- generate (genericArbitraryList :: Gen [(String,SumType)])
-      {-
-      and
-        [ or $ isJust . preview _SumType1 <$> sumTypes
-        , or $ isJust . preview _SumType2 <$> sumTypes
-        , or $ isJust . preview _SumType3 <$> sumTypes
-        , or $ isJust . preview _SumType4 <$> sumTypes
-        , length sumTypes == 4
-        ] `shouldBe` True
-      -}
+      bareSumType <- generate (genericArbitraryWithConList :: Gen [(String,BareSumType)])
+      sumTypes    <- generate (genericArbitraryWithConList :: Gen [(String,SumType)])
+
       liftIO $ print bareSumType
       liftIO $ print sumTypes
-      False `shouldBe` True
+
+      and
+        --[ or $ isJust . preview $ _SumType1 . _2 <$> sumTypes
+        --, or $ isJust . preview _SumType2 <$> sumTypes
+        --, or $ isJust . preview _SumType3 <$> sumTypes
+        --, or $ isJust . preview _SumType4 <$> sumTypes
+        [ length sumTypes == 4
+        ] `shouldBe` True
 
     it "genericArbitraryList of a product type creates a single instance" $ do
 
-      productTypes <- generate (genericArbitraryList :: Gen [(String,ProductType)])
-      {-
-      length productTypes `shouldBe` 1
-      -}
+      productTypes <- generate (genericArbitraryWithConList :: Gen [(String,ProductType)])
       liftIO $ print productTypes
-      True `shouldBe` False
-    
+      length productTypes `shouldBe` 1
+
 main :: IO ()
 main = hspec spec

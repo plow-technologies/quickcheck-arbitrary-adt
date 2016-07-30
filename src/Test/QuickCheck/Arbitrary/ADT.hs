@@ -49,8 +49,30 @@ genericArbitrary = to <$> garbitrary
 -- product type it will return a list of a single arbitrary. `garbitraryList` is
 -- recurse through child sum types.
 
+class GArbitraryList rep where
+  garbitraryList :: Gen [rep a]
 
--- garbitraryList = (:[]) . (:*:) <$> garbitrary <*> garbitrary`
+instance GArbitraryList U1 where
+  garbitraryList = pure [U1]
+
+instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :+: r) where
+  garbitraryList = (++) <$> (fmap L1 <$> garbitraryList) <*> (fmap R1 <$> garbitraryList)
+
+instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r) => GArbitraryList (l :*: r) where
+  garbitraryList = pure <$> garbitrary
+
+instance Arbitrary a => GArbitraryList (K1 i a) where
+  garbitraryList = (:[]) . K1 <$> arbitrary
+
+instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
+  garbitraryList = fmap M1 <$> garbitraryList
+
+genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [a]
+genericArbitraryList = fmap to <$> garbitraryList
+
+
+-- | GArbitraryWithCon creates an arbitrary and returns the name of the
+-- constructor that was used to create it
 
 class GArbitraryWithCon rep where
   garbitraryWithCon :: Gen (String, rep a)
@@ -89,95 +111,40 @@ genericArbitraryWithCon :: (Generic a, GArbitraryWithCon (Rep a)) => Gen (String
 genericArbitraryWithCon = fmap to <$> garbitraryWithCon
 
 
+-- | GArbitraryWithConList creates a list of arbitraries for each constructor
+-- in a type. It also includes the name of the constructor as a String.
 
+class GArbitraryWithConList rep where
+  garbitraryWithConList :: Gen [(String, rep a)]
 
+instance GArbitraryWithConList U1 where
+  garbitraryWithConList = pure [("",U1)]
 
+instance (GArbitraryWithConList l, GArbitraryWithConList r) => GArbitraryWithConList (l :+: r) where
+  garbitraryWithConList = (++) <$> ((fmap . fmap) L1 <$> garbitraryWithConList) <*> ((fmap . fmap) R1 <$> garbitraryWithConList)
 
-class GArbitraryList rep where
-  garbitraryList :: Gen [(String, rep a)]
-
-instance GArbitraryList U1 where
-  garbitraryList = pure [("",U1)]
-
-instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :+: r) where
-  garbitraryList = (++) <$> ((fmap . fmap) L1 <$> garbitraryList) <*> ((fmap . fmap) R1 <$> garbitraryList)
-
-instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :*: r) where
-  garbitraryList = do
-    xs <- garbitraryList
-    ys <- garbitraryList
+instance (GArbitraryWithConList l, GArbitraryWithConList r) => GArbitraryWithConList (l :*: r) where
+  garbitraryWithConList = do
+    xs <- garbitraryWithConList
+    ys <- garbitraryWithConList
     return [("", (snd . head $ xs) :*: (snd . head $ ys))]
-  --garbitraryList = (++) <$> ((fmap . fmap) L1 <$> garbitraryList) <*> ((fmap . fmap) R1 <$> garbitraryList)
-  --garbitraryList = (fmap . fmap . fmap) (:*:) <$> garbitraryList <*> garbitraryList
-  --garbitraryList = (fmap . fmap) (:*:) <$> (head <$> garbitraryList) <*> (head <$> garbitraryList)
 
-  -- garbitraryList = (:[]) . (:*:) <$> garbitrary <*> garbitrary`
-  --garbitraryList = fmap pure <$> garbitrary
---  garbitraryList = (:*:) <$> pure [("",)] <*> pure []
-
---instance Arbitrary a => GArbitraryList (K1 i a) where
---  garbitraryList = K1 <$> arbitrary --  fmap (:[]) . K1 <$> arbitrary
-
-{-
-instance (Constructor c) => GArbitraryList (M1 C c U1) where
-  garbitraryList = (fmap . fmap) M1 <$> pure [(con , U1)]
-    where
-      con = conName (undefined :: M1 C c U1 ())
--}
--- (selName (undefined :: M1 C x U1 ())
---instance (Selector x , GArbitraryList rep) => GArbitraryList (M1 C x rep) where
-
-instance (Constructor c, GArbitraryList rep) => GArbitraryList (M1 C c rep) where
-  garbitraryList = (fmap . fmap) M1 . (:[]) <$> ((,) <$> pure con <*> (snd . head <$> garbitraryList))
+instance (Constructor c, GArbitraryWithConList rep) => GArbitraryWithConList (M1 C c rep) where
+  garbitraryWithConList = (fmap . fmap) M1 . (:[]) <$> ((,) <$> pure con <*> (snd . head <$> garbitraryWithConList))
     where
       con = conName (undefined :: M1 C c rep ())
 
-{-
-instance (Constructor c, Arbitrary a) => GArbitraryList (M1 C c (K1 z a)) where
-  garbitraryList = (fmap . fmap) M1 <$> (:[]) <$> ((,) <$> pure con <*> (K1 <$> arbitrary))
-    where
-      con = conName (undefined :: M1 C c (K1 z a) ())
--}
---instance GArbitraryList f => GArbitraryList (M1 D x f) where
---  garbitraryList = garbitraryList
+instance Arbitrary a => GArbitraryWithConList (K1 i a) where
+  garbitraryWithConList = (:[]) . (,) "" . K1 <$> arbitrary
 
-{-
-instance (Constructor c, Selector s, Arbitrary a) =>  GArbitraryList (M1 C c (M1 S s (K1 z a))) where
-  garbitraryList = (fmap . fmap) M1 . (:[]) <$> ((,) <$> pure con <*> (M1 . K1 <$> arbitrary))
-      where
-        --con = conName (undefined :: M1 C c () ())
-        con = conName (undefined :: M1 C c (M1 S s (K1 z a)) ())
--}
-instance Arbitrary a => GArbitraryList (K1 i a) where
-  garbitraryList = (:[]) . (,) "" . K1 <$> arbitrary
+instance GArbitraryWithConList rep => GArbitraryWithConList (M1 D t rep) where
+  garbitraryWithConList = (fmap . fmap) M1 <$> garbitraryWithConList
 
+instance GArbitraryWithConList rep => GArbitraryWithConList (M1 S t rep) where
+  garbitraryWithConList = (fmap . fmap) M1 <$> garbitraryWithConList
 
-instance GArbitraryList rep => GArbitraryList (M1 D t rep) where
-  garbitraryList = (fmap . fmap) M1 <$> garbitraryList
-
-instance GArbitraryList rep => GArbitraryList (M1 S t rep) where
-  garbitraryList = (fmap . fmap) M1 <$> garbitraryList
-
---instance (Selector s, Arbitrary a) =>  GArbitraryList (M1 S s (K1 z a)) where
---  garbitraryList = (fmap . fmap) M1 <$> (:[]) . (,) "" . K1 <$> arbitrary
-    --(fmap . fmap) M1 . (:[]) <$> ((,) <$> pure "" <*> (M1 . K1 <$> arbitrary))
-
-{-
-(GArbitraryList (M1 S NoSelector (Rec0 Int)))
-
-instance Selectors f => Selectors (M1 D x f) where
-  selectors _ = selectors (Proxy :: Proxy f)
-
-instance Selectors f => Selectors (M1 C x f) where
-  selectors _ = selectors (Proxy :: Proxy f)
-
-instance (Selector s, Typeable t) => Selectors (M1 S s (K1 R t)) where
-  selectors _ =
-    [ ( selName (undefined :: M1 S s (K1 R t) ()) , typeOf (undefined :: t) ) ]
--}
-
-genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [(String,a)]
-genericArbitraryList = (fmap . fmap) to <$> garbitraryList
+genericArbitraryWithConList :: (Generic a, GArbitrary (Rep a), GArbitraryWithConList (Rep a)) => Gen [(String,a)]
+genericArbitraryWithConList = (fmap . fmap) to <$> garbitraryWithConList
 
 -- let y = (:[]) <$> ((,) <$> pure "asdf" <*> x)
 
