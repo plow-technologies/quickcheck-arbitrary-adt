@@ -55,45 +55,65 @@ genericArbitrary = to <$> garbitrary
 class GArbitraryList rep where
   garbitraryList :: Gen [(String, rep a)]
 
+
+instance GArbitraryList U1 where
+  garbitraryList = pure [("",U1)]
+
 instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :+: r) where
   garbitraryList = (++) <$> ((fmap . fmap) L1 <$> garbitraryList) <*> ((fmap . fmap) R1 <$> garbitraryList)
 
---instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r, GArbitrary []) => GArbitraryList (l :*: r) where
-  --garbitraryList = fmap pure <$> garbitrary
+instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r) => GArbitraryList (l :*: r) where
+  --garbitraryList = (++) <$> ((fmap . fmap) L1 <$> garbitraryList) <*> ((fmap . fmap) R1 <$> garbitraryList)
+  garbitraryList = (++) <$> garbitraryList <*> garbitraryList
+--  garbitraryList = fmap pure <$> garbitrary
 --  garbitraryList = (:*:) <$> pure [("",)] <*> pure []
 
 --instance Arbitrary a => GArbitraryList (K1 i a) where
 --  garbitraryList = K1 <$> arbitrary --  fmap (:[]) . K1 <$> arbitrary
 
+{-
 instance (Constructor c) => GArbitraryList (M1 C c U1) where
   garbitraryList = (fmap . fmap) M1 <$> pure [(con , U1)]
     where
       con = conName (undefined :: M1 C c U1 ())
+-}
 -- (selName (undefined :: M1 C x U1 ())
 --instance (Selector x , GArbitraryList rep) => GArbitraryList (M1 C x rep) where
 
+instance (Constructor c, GArbitraryList rep) => GArbitraryList (M1 C c rep) where
+  garbitraryList = (fmap . fmap) M1 . (:[]) <$> ((,) <$> pure con <*> (snd . head <$> garbitraryList))
+    where
+      con = conName (undefined :: M1 C c rep ())
+
+{-
 instance (Constructor c, Arbitrary a) => GArbitraryList (M1 C c (K1 z a)) where
   garbitraryList = (fmap . fmap) M1 <$> (:[]) <$> ((,) <$> pure con <*> (K1 <$> arbitrary))
     where
       con = conName (undefined :: M1 C c (K1 z a) ())
-
+-}
 --instance GArbitraryList f => GArbitraryList (M1 D x f) where
 --  garbitraryList = garbitraryList
 
+{-
 instance (Constructor c, Selector s, Arbitrary a) =>  GArbitraryList (M1 C c (M1 S s (K1 z a))) where
-  garbitraryList = (fmap . fmap) M1 <$> (:[]) <$> ((,) <$> pure con <*> (M1 . K1 <$> arbitrary))
+  garbitraryList = (fmap . fmap) M1 . (:[]) <$> ((,) <$> pure con <*> (M1 . K1 <$> arbitrary))
       where
         --con = conName (undefined :: M1 C c () ())
         con = conName (undefined :: M1 C c (M1 S s (K1 z a)) ())
-
---instance Arbitrary a => GArbitraryList (K1 i a) where
---  garbitraryList = (:[]) . ((,) "") . K1 <$> arbitrary
+-}
+instance Arbitrary a => GArbitraryList (K1 i a) where
+  garbitraryList = (:[]) . (,) "" . K1 <$> arbitrary
 
 
 instance GArbitraryList rep => GArbitraryList (M1 D t rep) where
   garbitraryList = (fmap . fmap) M1 <$> garbitraryList
 
+instance GArbitraryList rep => GArbitraryList (M1 S t rep) where
+  garbitraryList = (fmap . fmap) M1 <$> garbitraryList
+
 {-
+(GArbitraryList (M1 S NoSelector (Rec0 Int)))
+
 instance Selectors f => Selectors (M1 D x f) where
   selectors _ = selectors (Proxy :: Proxy f)
 
@@ -144,4 +164,36 @@ instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
 
 genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [a]
 genericArbitraryList = fmap to <$> garbitraryList
+-}
+
+
+{- Inspect tree
+data Sample = Sample1 Int | Sample2 Int String deriving (Eq,Show,Generic)
+λ> :kind! Rep Sample ()
+Rep Sample () :: *
+= D1
+    D1Sample
+    (C1 C1_0Sample (S1 NoSelector (Rec0 Int))
+     :+: C1
+           C1_1Sample
+           (S1 NoSelector (Rec0 Int) :*: S1 NoSelector (Rec0 String)))
+    ()
+
+
+:set -XDeriveGeneric
+import GHC.Generics
+data SumType = SumType1  Int
+             | SumType2 String Int
+             -- | SumType3  String [Int] Double
+             -- | SumType4 String [String] [Int] Double
+  deriving (Eq,Generic,Show)
+:kind! Rep SumType ()
+Rep SumType () :: *
+= D1
+    D1SumType
+    (C1 C1_0SumType (S1 NoSelector (Rec0 Int))
+     :+: C1
+           C1_1SumType
+           (S1 NoSelector (Rec0 String) :*: S1 NoSelector (Rec0 Int)))
+    ()
 -}

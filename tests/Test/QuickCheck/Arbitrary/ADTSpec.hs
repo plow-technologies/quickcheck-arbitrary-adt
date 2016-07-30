@@ -15,9 +15,14 @@ import           Test.Hspec
 import           Test.QuickCheck
 import           Test.QuickCheck.Arbitrary.ADT
 
+data BareSumType = BareSumType
+  deriving (Eq,Generic,Show)
+
+instance Arbitrary BareSumType where
+  arbitrary = genericArbitrary
 
 data SumType = SumType1  Int
-             -- | SumType2 String Int
+             | SumType2 String Int
              -- | SumType3  String [Int] Double
              -- | SumType4 String [String] [Int] Double
   deriving (Eq,Generic,Show)
@@ -43,6 +48,7 @@ spec :: Spec
 spec =
   describe "QuickCheck Arbitrary ADT" $ do
     it "genericArbitraryList of a sum type creates an instance with each constructor" $ do
+      bareSumType <- generate (genericArbitraryList :: Gen [(String,BareSumType)])
       sumTypes <- generate (genericArbitraryList :: Gen [(String,SumType)])
       {-
       and
@@ -53,6 +59,7 @@ spec =
         , length sumTypes == 4
         ] `shouldBe` True
       -}
+      liftIO $ print bareSumType
       liftIO $ print sumTypes
       False `shouldBe` True
     {-
