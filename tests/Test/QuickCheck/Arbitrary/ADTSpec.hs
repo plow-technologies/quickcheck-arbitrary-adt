@@ -17,9 +17,9 @@ import           Test.QuickCheck.Arbitrary.ADT
 
 
 data SumType = SumType1  Int
-             | SumType2 String Int
-             | SumType3  String [Int] Double
-             | SumType4 String [String] [Int] Double
+             -- | SumType2 String Int
+             -- | SumType3  String [Int] Double
+             -- | SumType4 String [String] [Int] Double
   deriving (Eq,Generic,Show)
 
 instance Arbitrary SumType where
@@ -32,8 +32,12 @@ data ProductType = ProductType {
 , age  :: Int
 } deriving (Eq,Generic,Show)
 
-instance Arbitrary ProductType where
-  arbitrary = genericArbitrary
+--instance Arbitrary ProductType where
+--  arbitrary = genericArbitrary
+
+--instance GArbitrary []
+--instance GArbitraryList []
+
 
 spec :: Spec
 spec =
@@ -51,7 +55,7 @@ spec =
       -}
       liftIO $ print sumTypes
       False `shouldBe` True
-
+    {-
     it "genericArbitraryList of a product type creates a single instance" $ do
 
       productTypes <- generate (genericArbitraryList :: Gen [(String,ProductType)])
@@ -60,5 +64,6 @@ spec =
       -}
       liftIO $ print productTypes
       True `shouldBe` False
+    -}
 main :: IO ()
 main = hspec spec

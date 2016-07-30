@@ -58,9 +58,9 @@ class GArbitraryList rep where
 instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :+: r) where
   garbitraryList = (++) <$> ((fmap . fmap) L1 <$> garbitraryList) <*> ((fmap . fmap) R1 <$> garbitraryList)
 
-instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r, GArbitrary []) => GArbitraryList (l :*: r) where
-  garbitraryList = fmap pure <$> garbitrary
-  --garbitraryList = (:[]) . (:*:) <$> garbitrary <*> garbitrary`
+--instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r, GArbitrary []) => GArbitraryList (l :*: r) where
+  --garbitraryList = fmap pure <$> garbitrary
+--  garbitraryList = (:*:) <$> pure [("",)] <*> pure []
 
 --instance Arbitrary a => GArbitraryList (K1 i a) where
 --  garbitraryList = K1 <$> arbitrary --  fmap (:[]) . K1 <$> arbitrary
@@ -71,6 +71,7 @@ instance (Constructor c) => GArbitraryList (M1 C c U1) where
       con = conName (undefined :: M1 C c U1 ())
 -- (selName (undefined :: M1 C x U1 ())
 --instance (Selector x , GArbitraryList rep) => GArbitraryList (M1 C x rep) where
+
 instance (Constructor c, Arbitrary a) => GArbitraryList (M1 C c (K1 z a)) where
   garbitraryList = (fmap . fmap) M1 <$> (:[]) <$> ((,) <$> pure con <*> (K1 <$> arbitrary))
     where
@@ -79,14 +80,17 @@ instance (Constructor c, Arbitrary a) => GArbitraryList (M1 C c (K1 z a)) where
 --instance GArbitraryList f => GArbitraryList (M1 D x f) where
 --  garbitraryList = garbitraryList
 
---instance GArbitraryList f => GArbitraryList (M1 S x f) where
---  garbitraryList = garbitraryList
+instance (Constructor c, Selector s, Arbitrary a) =>  GArbitraryList (M1 C c (M1 S s (K1 z a))) where
+  garbitraryList = (fmap . fmap) M1 <$> (:[]) <$> ((,) <$> pure con <*> (M1 . K1 <$> arbitrary))
+      where
+        --con = conName (undefined :: M1 C c () ())
+        con = conName (undefined :: M1 C c (M1 S s (K1 z a)) ())
 
-instance Arbitrary a => GArbitraryList (K1 i a) where
-  garbitraryList = (:[]) . ((,) "") . K1 <$> arbitrary
+--instance Arbitrary a => GArbitraryList (K1 i a) where
+--  garbitraryList = (:[]) . ((,) "") . K1 <$> arbitrary
 
 
-instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
+instance GArbitraryList rep => GArbitraryList (M1 D t rep) where
   garbitraryList = (fmap . fmap) M1 <$> garbitraryList
 
 {-
