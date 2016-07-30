@@ -21,10 +21,10 @@ data BareSumType = BareSumType
 instance Arbitrary BareSumType where
   arbitrary = genericArbitrary
 
-data SumType = SumType1  Int
+data SumType = SumType1 Int
              | SumType2 String Int
-             -- | SumType3  String [Int] Double
-             -- | SumType4 String [String] [Int] Double
+             | SumType3  String [Int] Double
+             | SumType4 String [String] [Int] Double
   deriving (Eq,Generic,Show)
 
 instance Arbitrary SumType where
@@ -62,7 +62,7 @@ spec =
       liftIO $ print bareSumType
       liftIO $ print sumTypes
       False `shouldBe` True
-    {-
+
     it "genericArbitraryList of a product type creates a single instance" $ do
 
       productTypes <- generate (genericArbitraryList :: Gen [(String,ProductType)])
@@ -71,6 +71,6 @@ spec =
       -}
       liftIO $ print productTypes
       True `shouldBe` False
-    -}
+    
 main :: IO ()
 main = hspec spec
