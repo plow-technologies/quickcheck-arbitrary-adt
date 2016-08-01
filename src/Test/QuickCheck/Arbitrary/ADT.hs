@@ -6,12 +6,37 @@
 
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-# LANGUAGE DefaultSignatures   #-}
+
 module Test.QuickCheck.Arbitrary.ADT where
 
 import           GHC.Generics
 
+import           Safe (headMay)
+
 import           Test.QuickCheck.Gen
 import           Test.QuickCheck.Arbitrary
+
+-- | ToArbitraryConstructor type class provides to functions.
+-- `toArbitraryConstructor` creates an arbitrary instance of one of the
+-- constructors of a given type.
+-- `toArbitraryConstructorList` creates an arbitrary instance of each of the
+-- constructors of a given type.
+-- If you use the default implementation with generic derivation,
+-- `toArbitraryConstructorList` will automatically provide an arbitrary for
+-- each constructor.
+-- If you define it yourself, it is your responsibility to make sure that
+-- an arbitrary instance of each type constructor is provided. The type signature
+-- does not guarantee that there will an instance of each type constructor.
+
+class ToArbitraryConstructor a where
+  toArbitraryConstructor :: Gen (String,a)
+  default toArbitraryConstructor :: (Generic a, GToArbitraryConstructor (Rep a)) => Gen (String, a)
+  toArbitraryConstructor = fmap to <$> gToArbitraryConstructor
+
+  toArbitraryConstructorList :: Gen [(String,a)]
+  default toArbitraryConstructorList :: (Generic a, GToArbitraryConstructorList (Rep a)) => Gen [(String, a)]
+  toArbitraryConstructorList = (fmap . fmap) to <$> gToArbitraryConstructorList
 
 -- | GArbitrary is a typeclass for generalizing the creation of single arbitrary
 -- product and sum types. Assume a simple sum type
@@ -20,132 +45,121 @@ import           Test.QuickCheck.Arbitrary
 --
 
 class GArbitrary rep where
-  garbitrary :: Gen (rep a)
+  gArbitrary :: Gen (rep a)
 
 instance GArbitrary U1 where
-  garbitrary = pure U1
+  gArbitrary = pure U1
 
 instance (GArbitrary l, GArbitrary r) => GArbitrary (l :+: r) where
-  garbitrary = do
+  gArbitrary = do
     b <- arbitrary
-    if b then L1 <$> garbitrary
-         else R1 <$> garbitrary
+    if b then L1 <$> gArbitrary
+         else R1 <$> gArbitrary
 
 instance (GArbitrary l, GArbitrary r) => GArbitrary (l :*: r) where
-  garbitrary = (:*:) <$> garbitrary <*> garbitrary
+  gArbitrary = (:*:) <$> gArbitrary <*> gArbitrary
 
 instance Arbitrary a => GArbitrary (K1 i a) where
-  garbitrary = K1 <$> arbitrary
+  gArbitrary = K1 <$> arbitrary
 
 instance GArbitrary rep => GArbitrary (M1 i t rep) where
-  garbitrary = M1 <$> garbitrary
+  gArbitrary = M1 <$> gArbitrary
 
 genericArbitrary :: (Generic a, GArbitrary (Rep a)) => Gen a
-genericArbitrary = to <$> garbitrary
+genericArbitrary = to <$> gArbitrary
 
 
--- | GArbitraryList is a typeclass for generalizing the creation of a list of
--- arbitrary instances of each constructor of a sum type. In the case of a
--- product type it will return a list of a single arbitrary. `garbitraryList` is
--- recurse through child sum types.
 
-class GArbitraryList rep where
-  garbitraryList :: Gen [rep a]
-
-instance GArbitraryList U1 where
-  garbitraryList = pure [U1]
-
-instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :+: r) where
-  garbitraryList = (++) <$> (fmap L1 <$> garbitraryList) <*> (fmap R1 <$> garbitraryList)
-
-instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r) => GArbitraryList (l :*: r) where
-  garbitraryList = pure <$> garbitrary
-
-instance Arbitrary a => GArbitraryList (K1 i a) where
-  garbitraryList = (:[]) . K1 <$> arbitrary
-
-instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
-  garbitraryList = fmap M1 <$> garbitraryList
-
-genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [a]
-genericArbitraryList = fmap to <$> garbitraryList
-
-
--- | GArbitraryWithCon creates an arbitrary and returns the name of the
+-- | GToArbitraryConstructor creates an arbitrary and returns the name of the
 -- constructor that was used to create it
 
-class GArbitraryWithCon rep where
-  garbitraryWithCon :: Gen (String, rep a)
+class GToArbitraryConstructor rep where
+  gToArbitraryConstructor :: Gen (String, rep a)
 
-instance GArbitraryWithCon U1 where
-  garbitraryWithCon = pure ("",U1)
+instance GToArbitraryConstructor U1 where
+  gToArbitraryConstructor = pure ("",U1)
 
-instance (GArbitraryWithCon l, GArbitraryWithCon r) => GArbitraryWithCon (l :+: r) where
-  garbitraryWithCon = do
+instance (GToArbitraryConstructor l, GToArbitraryConstructor r) => GToArbitraryConstructor (l :+: r) where
+  gToArbitraryConstructor = do
     b <- arbitrary
-    if b then fmap L1 <$> garbitraryWithCon
-         else fmap R1 <$> garbitraryWithCon
+    if b then fmap L1 <$> gToArbitraryConstructor
+         else fmap R1 <$> gToArbitraryConstructor
 
-instance (GArbitraryWithCon l, GArbitraryWithCon r) => GArbitraryWithCon (l :*: r) where
-  garbitraryWithCon = do
-    (a,x) <- garbitraryWithCon
-    (b,y) <- garbitraryWithCon
+instance (GToArbitraryConstructor l, GToArbitraryConstructor r) => GToArbitraryConstructor (l :*: r) where
+  gToArbitraryConstructor = do
+    (_,x) <- gToArbitraryConstructor
+    (_,y) <- gToArbitraryConstructor
     return ("", x :*: y)
 
-instance Arbitrary a => GArbitraryWithCon (K1 i a) where
-  garbitraryWithCon = (,) "" . K1 <$> arbitrary
+instance Arbitrary a => GToArbitraryConstructor (K1 i a) where
+  gToArbitraryConstructor = (,) "" . K1 <$> arbitrary
 
-instance (Constructor c, GArbitraryWithCon rep) => GArbitraryWithCon (M1 C c rep) where
-  garbitraryWithCon = fmap M1 <$> ((,) <$> pure con <*> (snd <$> garbitraryWithCon))
+instance (Constructor c, GToArbitraryConstructor rep) => GToArbitraryConstructor (M1 C c rep) where
+  gToArbitraryConstructor = fmap M1 <$> ((,) <$> pure con <*> (snd <$> gToArbitraryConstructor))
     where
       con = conName (undefined :: M1 C c rep ())
 
-instance GArbitraryWithCon rep => GArbitraryWithCon (M1 D t rep) where
-  garbitraryWithCon = fmap M1 <$> garbitraryWithCon
+instance GToArbitraryConstructor rep => GToArbitraryConstructor (M1 D t rep) where
+  gToArbitraryConstructor = fmap M1 <$> gToArbitraryConstructor
 
-instance GArbitraryWithCon rep => GArbitraryWithCon (M1 S t rep) where
-  garbitraryWithCon = fmap M1 <$> garbitraryWithCon
-
-
-genericArbitraryWithCon :: (Generic a, GArbitraryWithCon (Rep a)) => Gen (String, a)
-genericArbitraryWithCon = fmap to <$> garbitraryWithCon
+instance GToArbitraryConstructor rep => GToArbitraryConstructor (M1 S t rep) where
+  gToArbitraryConstructor = fmap M1 <$> gToArbitraryConstructor
 
 
--- | GArbitraryWithConList creates a list of arbitraries for each constructor
--- in a type. It also includes the name of the constructor as a String.
+-- | GToArbitraryConstructorList is a typeclass for generalizing the creation
+-- of a list of arbitrary instances of each constructor of a type.  It also
+-- includes the name of the constructor as a String for reference and file
+-- creation.
 
-class GArbitraryWithConList rep where
-  garbitraryWithConList :: Gen [(String, rep a)]
+class GToArbitraryConstructorList rep where
+  gToArbitraryConstructorList :: Gen [(String, rep a)]
 
-instance GArbitraryWithConList U1 where
-  garbitraryWithConList = pure [("",U1)]
+instance GToArbitraryConstructorList U1 where
+  gToArbitraryConstructorList = pure [("",U1)]
 
-instance (GArbitraryWithConList l, GArbitraryWithConList r) => GArbitraryWithConList (l :+: r) where
-  garbitraryWithConList = (++) <$> ((fmap . fmap) L1 <$> garbitraryWithConList) <*> ((fmap . fmap) R1 <$> garbitraryWithConList)
+instance (GToArbitraryConstructorList l, GToArbitraryConstructorList r) => GToArbitraryConstructorList (l :+: r) where
+  gToArbitraryConstructorList = (++) <$> ((fmap . fmap) L1 <$> gToArbitraryConstructorList) <*> ((fmap . fmap) R1 <$> gToArbitraryConstructorList)
 
-instance (GArbitraryWithConList l, GArbitraryWithConList r) => GArbitraryWithConList (l :*: r) where
-  garbitraryWithConList = do
-    xs <- garbitraryWithConList
-    ys <- garbitraryWithConList
-    return [("", (snd . head $ xs) :*: (snd . head $ ys))]
+instance (GToArbitraryConstructor l, GToArbitraryConstructorList l, GToArbitraryConstructor r, GToArbitraryConstructorList r) => GToArbitraryConstructorList (l :*: r) where
+  gToArbitraryConstructorList = do
+    xs <- gToArbitraryConstructor
+    ys <- gToArbitraryConstructor
+    return [("", snd xs :*: snd ys)]
 
-instance (Constructor c, GArbitraryWithConList rep) => GArbitraryWithConList (M1 C c rep) where
-  garbitraryWithConList = (fmap . fmap) M1 . (:[]) <$> ((,) <$> pure con <*> (snd . head <$> garbitraryWithConList))
+{-
+instance (Constructor c, GToArbitraryConstructorList rep) => GToArbitraryConstructorList (M1 C c rep) where
+  gToArbitraryConstructorList = (fmap . fmap) M1 . (:[]) <$> ((,) <$> pure con <*> (snd . head <$> gToArbitraryConstructorList))
     where
       con = conName (undefined :: M1 C c rep ())
+-}
 
-instance Arbitrary a => GArbitraryWithConList (K1 i a) where
-  garbitraryWithConList = (:[]) . (,) "" . K1 <$> arbitrary
+instance (Constructor c, GToArbitraryConstructorList rep) => GToArbitraryConstructorList (M1 C c rep) where
+  gToArbitraryConstructorList = do
+    mConRep <- fmap snd . headMay <$> gToArbitraryConstructorList
+    case mConRep of
+      Nothing     -> fail "GToArbitraryConstructorList constructor representation returned an empty list. This should not happen."
+      Just conRep -> return $  fmap M1 <$> [(conString, conRep)]
+    where
+      conString = conName (undefined :: M1 C c rep ())
 
-instance GArbitraryWithConList rep => GArbitraryWithConList (M1 D t rep) where
-  garbitraryWithConList = (fmap . fmap) M1 <$> garbitraryWithConList
 
-instance GArbitraryWithConList rep => GArbitraryWithConList (M1 S t rep) where
-  garbitraryWithConList = (fmap . fmap) M1 <$> garbitraryWithConList
+instance GToArbitraryConstructorList rep => GToArbitraryConstructorList (M1 D t rep) where
+  gToArbitraryConstructorList = (fmap . fmap) M1 <$> gToArbitraryConstructorList
 
-genericArbitraryWithConList :: (Generic a, GArbitrary (Rep a), GArbitraryWithConList (Rep a)) => Gen [(String,a)]
-genericArbitraryWithConList = (fmap . fmap) to <$> garbitraryWithConList
+instance GToArbitraryConstructorList rep => GToArbitraryConstructorList (M1 S t rep) where
+  gToArbitraryConstructorList = (fmap . fmap) M1 <$> gToArbitraryConstructorList
 
+-- | at the Rep level there is no access to the constructor name
+-- pass the arbitrary for the constructor with an empty string
+-- the empty string will be replaced at the declaration for `M1 C c rep`
+instance Arbitrary a => GToArbitraryConstructorList (K1 i a) where
+  gToArbitraryConstructorList = (:[]) . (,) "" . K1 <$> arbitrary
+
+
+--class AribitrariesWithConstructors a where
+--  arbitrariesWithConstructors :: Gen [(String,a)]
+--  default arbitrariesWithConstructors :: (Generic a, GArbitraryWithConList (Rep a)) => Gen [(String, a)]
+--  arbitrariesWithConstructors = (fmap . fmap) to <$> garbitraryWithConList
 -- let y = (:[]) <$> ((,) <$> pure "asdf" <*> x)
 
 {-
@@ -160,29 +174,6 @@ instance (Selector s, Typeable t) => Selectors (M1 S s (K1 R t)) where
 
 --genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [a]
 --genericArbitraryList = fmap to <$> garbitraryList
-
-{-
-class GArbitraryList rep where
-  garbitraryList :: Gen [rep a]
-
-instance GArbitraryList U1 where
-  garbitraryList = pure [U1]
-
-instance (GArbitraryList l, GArbitraryList r) => GArbitraryList (l :+: r) where
-  garbitraryList = (++) <$> (fmap L1 <$> garbitraryList) <*> (fmap R1 <$> garbitraryList)
-
-instance (GArbitraryList l, GArbitrary l, GArbitraryList r, GArbitrary r) => GArbitraryList (l :*: r) where
-  garbitraryList = pure <$> garbitrary
-
-instance Arbitrary a => GArbitraryList (K1 i a) where
-  garbitraryList = (:[]) . K1 <$> arbitrary
-
-instance GArbitraryList rep => GArbitraryList (M1 i t rep) where
-  garbitraryList = fmap M1 <$> garbitraryList
-
-genericArbitraryList :: (Generic a, GArbitrary (Rep a), GArbitraryList (Rep a)) => Gen [a]
-genericArbitraryList = fmap to <$> garbitraryList
--}
 
 
 {- Inspect tree
