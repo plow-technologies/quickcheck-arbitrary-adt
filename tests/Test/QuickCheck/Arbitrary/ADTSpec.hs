@@ -15,14 +15,20 @@ import           Test.Hspec
 import           Test.QuickCheck
 import           Test.QuickCheck.Arbitrary.ADT
 
-data BareSumType = BareSumType
+-- | A tagless type has constructor which has no parameters. It has U1 in its
+-- `GHC.Generics` representation.
+data TaglessType = TaglessType
   deriving (Eq,Generic,Show)
 
-instance ToArbitraryConstructor BareSumType
-
-instance Arbitrary BareSumType where
+instance ToArbitraryConstructor TaglessType
+instance Arbitrary TaglessType where
   arbitrary = genericArbitrary
 
+$(makePrisms ''TaglessType)
+
+-- | A sum type (disjoin union, tagged union) has multiple type constructors
+-- that all result in values of different shapes, but the same type. It has
+-- `:+:` and `M1 C c rep` in its `GHC.Generics` representation.
 data SumType = SumType1 Int
              | SumType2 String Int
              | SumType3  String [Int] Double
@@ -33,12 +39,22 @@ instance ToArbitraryConstructor SumType
 instance Arbitrary SumType where
   arbitrary = genericArbitrary
 
-data SumOfSums = SSBareSumType BareSumType
+$(makePrisms ''SumType)
+
+-- | This type is an example of a sum type that has constructors building sum
+-- types.
+data SumOfSums = SSBareSumType TaglessType
                | SSSumType SumType
   deriving (Eq,Generic,Show)
 
-$(makePrisms ''SumType)
 instance ToArbitraryConstructor SumOfSums
+instance Arbitrary SumOfSums where
+  arbitrary = genericArbitrary
+
+$(makePrisms ''SumOfSums)
+
+-- | A product type has one constructor with one records. It has :*: and `M1 S s rep`
+-- in its `GHC.Generics` representation.
 
 data ProductType = ProductType {
   name :: String
@@ -46,31 +62,40 @@ data ProductType = ProductType {
 } deriving (Eq,Generic,Show)
 
 instance ToArbitraryConstructor ProductType
+instance Arbitrary ProductType where
+  arbitrary = genericArbitrary
+
+$(makePrisms ''ProductType)
 
 spec :: Spec
 spec =
-  describe "QuickCheck Arbitrary ADT" $ do
-    it "genericArbitraryList of a sum type creates an instance with each constructor" $ do
-      bareSumType <- generate (toArbitraryConstructorList :: Gen [(String,BareSumType)])
-      sumTypes    <- generate (toArbitraryConstructorList :: Gen [(String,SumType)])
-      ssSumTypes  <- generate (toArbitraryConstructorList :: Gen [(String,SumOfSums)])
+  describe "QuickCheck Arbitrary ADT: ToArbitraryConstructor type class" $ do
+    it "toArbitraryConstructorList of a tagless type should create an instance of the bare constructor" $ do
+      taglessType <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, TaglessType)])
+      or (isJust . preview _TaglessType <$> taglessType) `shouldBe` True
 
-      liftIO $ print bareSumType
-      liftIO $ print sumTypes
-      liftIO $ print ssSumTypes
-
+    it "toArbitraryConstructorList of a sum type creates an instance with each constructor" $ do
+      -- remove the constructor tags
+      sumTypes <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String,SumType)])
       and
-        --[ or $ isJust . preview $ _SumType1 . _2 <$> sumTypes
-        --, or $ isJust . preview _SumType2 <$> sumTypes
-        --, or $ isJust . preview _SumType3 <$> sumTypes
-        --, or $ isJust . preview _SumType4 <$> sumTypes
-        [ length sumTypes == 4
+        [ or $ isJust . preview _SumType1 <$> sumTypes
+        , or $ isJust . preview _SumType2 <$> sumTypes
+        , or $ isJust . preview _SumType3 <$> sumTypes
+        , or $ isJust . preview _SumType4 <$> sumTypes
+        , length sumTypes == 4
         ] `shouldBe` True
 
-    it "genericArbitraryList of a product type creates a single instance" $ do
+    it "toArbitraryConstructorList of a sum of sum types creates an instance with each constructor of the top level" $ do
+      sumOfSums <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, SumOfSums)])
+      and
+        [ or $ isJust . preview _SSBareSumType <$> sumOfSums
+        , or $ isJust . preview _SSSumType <$> sumOfSums
+        , length sumOfSums == 2
+        ] `shouldBe` True
 
+
+    it "toArbitraryConstructorList of a product type creates a single instance" $ do
       productTypes <- generate (toArbitraryConstructorList :: Gen [(String,ProductType)])
-      liftIO $ print productTypes
       length productTypes `shouldBe` 1
 
 main :: IO ()
