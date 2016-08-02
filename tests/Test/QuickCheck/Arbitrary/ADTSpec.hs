@@ -15,6 +15,9 @@ import           Test.Hspec
 import           Test.QuickCheck
 import           Test.QuickCheck.Arbitrary.ADT
 
+
+import           Data.Proxy
+
 -- | A tagless type has constructor which has no parameters. It has U1 in its
 -- `GHC.Generics` representation.
 data TaglessType = TaglessType
@@ -23,6 +26,10 @@ data TaglessType = TaglessType
 instance ToArbitraryConstructor TaglessType
 instance Arbitrary TaglessType where
   arbitrary = genericArbitrary
+
+instance TypeName TaglessType
+
+--instance GToArbitraryConstructorT TaglessType
 
 $(makePrisms ''TaglessType)
 
@@ -72,6 +79,12 @@ spec =
   describe "QuickCheck Arbitrary ADT: ToArbitraryConstructor type class" $ do
     it "toArbitraryConstructorList of a tagless type should create an instance of the bare constructor" $ do
       taglessType <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, TaglessType)])
+      liftIO $ print taglessType
+      tt <- generate (genericToArbitraryConstructorT :: Gen (ArbitraryConstructorData TaglessType))
+      liftIO $ print $ typeName tt
+      liftIO $ print $ typename (Proxy :: Proxy TaglessType)
+      --liftIO $ print $ gtypename (Proxy :: Proxy TaglessType)
+
       or (isJust . preview _TaglessType <$> taglessType) `shouldBe` True
 
     it "toArbitraryConstructorList of a sum type creates an instance with each constructor" $ do

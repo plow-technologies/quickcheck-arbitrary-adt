@@ -8,6 +8,8 @@
 
 {-# LANGUAGE DefaultSignatures   #-}
 
+{-# LANGUAGE DeriveGeneric #-}
+
 module Test.QuickCheck.Arbitrary.ADT where
 
 import           GHC.Generics
@@ -16,6 +18,8 @@ import           Safe (headMay)
 
 import           Test.QuickCheck.Gen
 import           Test.QuickCheck.Arbitrary
+
+import           Data.Typeable
 
 -- | ToArbitraryConstructor type class provides to functions.
 -- `toArbitraryConstructor` creates an arbitrary instance of one of the
@@ -155,7 +159,6 @@ instance GToArbitraryConstructorList rep => GToArbitraryConstructorList (M1 S t 
 instance Arbitrary a => GToArbitraryConstructorList (K1 i a) where
   gToArbitraryConstructorList = (:[]) . (,) "" . K1 <$> arbitrary
 
-
 --class AribitrariesWithConstructors a where
 --  arbitrariesWithConstructors :: Gen [(String,a)]
 --  default arbitrariesWithConstructors :: (Generic a, GArbitraryWithConList (Rep a)) => Gen [(String, a)]
@@ -206,3 +209,100 @@ Rep SumType () :: *
            (S1 NoSelector (Rec0 String) :*: S1 NoSelector (Rec0 Int)))
     ()
 -}
+
+data ArbitraryConstructorData a = ArbitraryConstructorData {
+  typeName             :: String
+, arbitraryConstructor :: (String, a)
+} deriving (Generic,Eq,Show)
+
+genericToArbitraryConstructorT :: ( Generic a
+                                  , Generic (ArbitraryConstructorData a)
+                                  , GToArbitraryConstructorT (Rep a)
+                                  , GToArbitraryConstructorT (Rep (ArbitraryConstructorData a)))
+                                 => Gen (ArbitraryConstructorData a)
+genericToArbitraryConstructorT = to . snd . arbitraryConstructor <$> gToArbitraryConstructorT
+--genericToArbitraryConstructorT = (fmap . fmap) to <$> gToArbitraryConstructorT
+
+class GToArbitraryConstructorT rep where
+  gToArbitraryConstructorT :: Gen (ArbitraryConstructorData (rep a))
+
+instance GToArbitraryConstructorT U1 where
+  gToArbitraryConstructorT = pure $ ArbitraryConstructorData "" ("",U1)
+
+{-
+instance (GToArbitraryConstructorT l, GToArbitraryConstructorT r) => GToArbitraryConstructorT (l :+: r) where
+  gToArbitraryConstructorT = do
+    b <- gToArbitraryConstructorT :: (Gen (ArbitraryConstructorData Bool))
+    if (snd . arbitraryConstructor $ b)
+      then fmap L1 <$> arbitraryConstructor <$> gToArbitraryConstructorT
+      else fmap R1 <$> arbitraryConstructor <$> gToArbitraryConstructorT
+-}
+    --where
+    --  leftSide = L1  gToArbitraryConstructorT
+      --rightSide = (fmap . fmap) R1 <$> arbitraryConstructor <$> gToArbitraryConstructorT
+
+{-
+b <- arbitrary
+if b then fmap L1 <$> gToArbitraryConstructor
+     else fmap R1 <$> gToArbitraryConstructor
+-}
+
+--   gToArbitraryConstructorList = (++) <$> ((fmap . fmap) L1 <$> gToArbitraryConstructorList) <*> ((fmap . fmap) R1 <$> gToArbitraryConstructorList)
+
+--  gToArbitraryConstructorT = (fmap . fmap ) L1 <$> (fmap) arbitraryConstructor <$> gToArbitraryConstructorT
+  --    y = L1 <$> (fmap) snd . arbitraryConstructor <$> gToArbitraryConstructorT
+    --b <- liftM arbitrary
+    --if b then
+    --     else fmap R1 <$> gToArbitraryConstructorT
+
+instance (GToArbitraryConstructorT l, GToArbitraryConstructorT r) => GToArbitraryConstructorT (l :*: r) where
+  gToArbitraryConstructorT = do
+    x <- arbitraryConstructor <$> gToArbitraryConstructorT
+    y <- arbitraryConstructor <$> gToArbitraryConstructorT
+    return $ ArbitraryConstructorData  "" ("", snd x :*: snd y)
+
+--   gToArbitraryConstructorList = (:[]) . (,) "" . K1 <$> arbitrary
+instance Arbitrary a => GToArbitraryConstructorT (K1 i a) where
+  gToArbitraryConstructorT = ArbitraryConstructorData <$> pure "" <*> ((,) "" . K1 <$> arbitrary)
+
+instance (Constructor c, GToArbitraryConstructorT rep) => GToArbitraryConstructorT (M1 C c rep) where
+  gToArbitraryConstructorT = ArbitraryConstructorData <$> pure "" <*> ((,) con <$> (M1 . snd . arbitraryConstructor <$> gToArbitraryConstructorT))
+    --fmap M1 <$> ArbitraryConstructorData "" ((,) <$> pure con <*> ((fmap) snd . arbitraryConstructor <$> gToArbitraryConstructorT))
+    where
+      con = conName (undefined :: M1 C c rep ())
+
+instance (Datatype t, Typeable t, GToArbitraryConstructorT rep) => GToArbitraryConstructorT (M1 D t rep) where
+  gToArbitraryConstructorT = ArbitraryConstructorData <$> pure t <*> ((,) <$> (fst . arbitraryConstructor <$> z) <*> (M1 . snd . arbitraryConstructor <$> z))
+    where
+      z = gToArbitraryConstructorT
+      t = datatypeName (undefined :: M1 D t rep ())
+      -- x = show $ typeOf (undefined :: t)
+
+instance GToArbitraryConstructorT rep => GToArbitraryConstructorT (M1 S t rep) where
+  gToArbitraryConstructorT = ArbitraryConstructorData <$> pure "" <*> ((,) <$> (fst . arbitraryConstructor <$> z) <*> (M1 . snd . arbitraryConstructor <$> z))
+    where
+      z = gToArbitraryConstructorT
+
+
+
+class TypeName a where
+  typename :: Proxy a -> String
+
+  default typename :: (Generic a, GTypeName (Rep a)) => Proxy a -> String
+  typename _proxy = gtypename (from (undefined :: a))
+
+-- | Generic equivalent to `TypeName`.
+class GTypeName f where
+  gtypename :: f a -> String
+
+--instance (Datatype c) => GTypeName (M1 i c f) where
+--  gtypename m = datatypeName (undefined :: M1 i c f ())
+
+instance (Datatype c) => GTypeName (M1 C c f) where
+  gtypename m = datatypeName (undefined :: M1 C c f ())
+
+instance (Datatype c) => GTypeName (M1 D c f) where
+  gtypename m = datatypeName (undefined :: M1 D c f ())
+
+instance (Datatype c) => GTypeName (M1 S c f) where
+  gtypename m = datatypeName (undefined :: M1 S c f ())
