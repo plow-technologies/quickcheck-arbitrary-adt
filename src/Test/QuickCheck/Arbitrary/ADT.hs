@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -9,6 +10,7 @@
 {-# LANGUAGE DefaultSignatures   #-}
 
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ExistentialQuantification, RankNTypes #-}
 
 module Test.QuickCheck.Arbitrary.ADT where
 
@@ -41,6 +43,54 @@ class ToArbitraryConstructor a where
   toArbitraryConstructorList :: Gen [(String,a)]
   default toArbitraryConstructorList :: (Generic a, GToArbitraryConstructorList (Rep a)) => Gen [(String, a)]
   toArbitraryConstructorList = (fmap . fmap) to <$> gToArbitraryConstructorList
+
+class ToADTArbitrary a where
+  toADTArbitrarySingleton :: Proxy a -> Gen (ADTArbitrarySingleton a)
+  default toADTArbitrarySingleton ::( Arbitrary a
+                                    , Generic a
+                                    , GToADTArbitrarySingleton (Rep a)
+                                    , GToADTArbitrarySingleton (Rep (ADTArbitrarySingleton a)))
+                                    => Proxy a
+                                    -> Gen (ADTArbitrarySingleton a)
+  toADTArbitrarySingleton = genericToADTArbitrarySingleton
+
+  toADTArbitrary :: Proxy a -> Gen (ADTArbitrary a)
+  default toADTArbitrary :: ( Arbitrary a
+                            , Generic a
+                            , GToADTArbitrary (Rep a)
+                            , GToADTArbitrary (Rep (ADTArbitrary a)))
+                           => Proxy a
+                           -> Gen (ADTArbitrary a)
+  toADTArbitrary = genericToADTArbitrary
+
+  --toADTArbitrary :: Proxy a -> Gen (ADTArbitrary a)
+  --default toADTArbitrary :: (Generic a, GToArbitraryConstructorList (Rep a)) => Gen [(String, a)]
+  --toADTArbitrary = (fmap . fmap) to <$> gToArbitraryConstructorList
+
+
+{-
+genericToADTArbitrary :: forall a.
+                        ( Arbitrary a
+                        , Generic a
+                        , GToADTArbitrary (Rep a)
+                        , GToADTArbitrary (Rep (ADTArbitrary a)))
+                       => Proxy a
+                       -> Gen (ADTArbitrary a)
+genericToADTArbitrary _ = fmap to <$> gToADTArbitrary (Proxy :: Proxy (Rep a))
+
+
+genericToADTArbitrarySingleton :: forall a.
+                                  ( Arbitrary a
+                                  , Generic a
+                                  , GToADTArbitrarySingleton (Rep a)
+                                  , GToADTArbitrarySingleton (Rep (ADTArbitrarySingleton a)))
+                                 => Proxy a
+                                 -> Gen (ADTArbitrarySingleton a)
+genericToADTArbitrarySingleton _ = fmap to <$> gToADTArbitrarySingleton (Proxy :: Proxy (Rep a))
+
+-}
+
+
 
 -- | GArbitrary is a typeclass for generalizing the creation of single arbitrary
 -- product and sum types. Assume a simple sum type
@@ -302,9 +352,6 @@ instance (GToADTArbitrary l, GToADTArbitrary r) => GToADTArbitrary (l :+: r) whe
     a <- fmap L1 <$> gToADTArbitrary (Proxy :: Proxy l)
     b <- fmap R1 <$> gToADTArbitrary (Proxy :: Proxy r)
     return $ ADTArbitrary "" (_adtCAPs a ++ _adtCAPs b)
-    --b <- arbitrary
-    --if b then fmap L1 <$> gToADTArbitrary (Proxy :: Proxy l)
-    --     else fmap R1 <$> gToADTArbitrary (Proxy :: Proxy r)
 
 instance (GToADTArbitrarySingleton l, GToADTArbitrary l, GToADTArbitrarySingleton r, GToADTArbitrary r) => GToADTArbitrary (l :*: r) where
   gToADTArbitrary _ = do
@@ -314,28 +361,6 @@ instance (GToADTArbitrarySingleton l, GToADTArbitrary l, GToADTArbitrarySingleto
     where
       getArb = _capArbitrary . _adtasCAP
 
-{-
-instance (GToArbitraryConstructorList l, GToArbitraryConstructorList r) => GToArbitraryConstructorList (l :+: r) where
-  gToArbitraryConstructorList = (++) <$> ((fmap . fmap) L1 <$> gToArbitraryConstructorList) <*> ((fmap . fmap) R1 <$> gToArbitraryConstructorList)
-
-instance (GToArbitraryConstructor l, GToArbitraryConstructorList l, GToArbitraryConstructor r, GToArbitraryConstructorList r) => GToArbitraryConstructorList (l :*: r) where
-  gToArbitraryConstructorList = do
-    xs <- gToArbitraryConstructor
-    ys <- gToArbitraryConstructor
-    return [("", snd xs :*: snd ys)]
--}
-
-{-
-instance Arbitrary a => GToADTArbitrarySingleton (K1 i a) where
-  gToADTArbitrarySingleton _ = ADTArbitrarySingleton
-                           <$> pure ""
-                           <*>  ( ConstructorArbitraryPair
-                              <$> pure ""
-                              <*> K1 <$> arbitrary
-                                )
--}
-
-
 instance Arbitrary a => GToADTArbitrary (K1 i a) where
   gToADTArbitrary _ = ADTArbitrary
                         <$> pure ""
@@ -344,6 +369,7 @@ instance Arbitrary a => GToADTArbitrary (K1 i a) where
       arb    = arbitrary :: Gen a
       genCap = ConstructorArbitraryPair <$> pure "" <*> (K1 <$> arb)
 
+-- constructor level
 instance (Constructor c, GToADTArbitrary rep) => GToADTArbitrary (M1 C c rep) where
   gToADTArbitrary _ = ADTArbitrary <$> pure "" <*> (:[]) . ConstructorArbitraryPair con <$> ac
     where
@@ -351,7 +377,8 @@ instance (Constructor c, GToADTArbitrary rep) => GToADTArbitrary (M1 C c rep) wh
       ac   = M1 . _capArbitrary . head . _adtCAPs <$> kRep
       con = conName (undefined :: M1 C c rep ())
 
-instance (Datatype t, Typeable t, GToADTArbitrary rep) => GToADTArbitrary (M1 D t rep) where
+-- type level
+instance (Datatype t, GToADTArbitrary rep) => GToADTArbitrary (M1 D t rep) where
   gToADTArbitrary _ =  ADTArbitrary <$> pure t <*> m1caps
     where
       kRep = gToADTArbitrary (Proxy :: Proxy rep)
@@ -359,6 +386,7 @@ instance (Datatype t, Typeable t, GToADTArbitrary rep) => GToADTArbitrary (M1 D 
       m1caps = (fmap . fmap) M1 <$> caps
       t    = datatypeName (undefined :: M1 D t rep ())
 
+-- selector level
 instance GToADTArbitrary rep => GToADTArbitrary (M1 S t rep) where
   gToADTArbitrary _ = ADTArbitrary
                             <$> pure ""
