@@ -80,9 +80,7 @@ spec =
     it "toArbitraryConstructorList of a tagless type should create an instance of the bare constructor" $ do
       taglessType <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, TaglessType)])
       liftIO $ print taglessType
-      --tt <- generate (genericToArbitraryConstructorT (Proxy :: Proxy TaglessType))
-      --gToArbitraryConstructorT :: Proxy rep -> Gen (ArbitraryConstructorData (rep a))
-      tt <- generate (gToArbitraryConstructorT (Proxy :: Proxy (Rep TaglessType)))
+      tt <- generate (genericToADTArbitrarySingleton (Proxy :: Proxy TaglessType))
       liftIO $ print tt
       liftIO $ print $ typename (Proxy :: Proxy TaglessType)
 
@@ -111,7 +109,7 @@ spec =
 
     it "toArbitraryConstructorList of a product type creates a single instance" $ do
       productTypes <- generate (toArbitraryConstructorList :: Gen [(String,ProductType)])
-      tt <- generate (genericToArbitraryConstructorT (Proxy :: Proxy ProductType))
+      tt <- generate (genericToADTArbitrarySingleton (Proxy :: Proxy ProductType))
       liftIO $ print tt
       --liftIO $ print $ GHC.Generics.to . snd . arbitraryConstructor $ tt
       length productTypes `shouldBe` 1
