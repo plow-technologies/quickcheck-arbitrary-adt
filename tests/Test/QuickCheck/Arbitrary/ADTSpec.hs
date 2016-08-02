@@ -27,8 +27,6 @@ instance ToArbitraryConstructor TaglessType
 instance Arbitrary TaglessType where
   arbitrary = genericArbitrary
 
-instance TypeName TaglessType
-
 --instance GToArbitraryConstructorT TaglessType
 
 $(makePrisms ''TaglessType)
@@ -81,15 +79,17 @@ spec =
       taglessType <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, TaglessType)])
       liftIO $ print taglessType
       tt <- generate (genericToADTArbitrarySingleton (Proxy :: Proxy TaglessType))
+      tss <- generate (genericToADTArbitrary (Proxy :: Proxy TaglessType))
       liftIO $ print tt
-      liftIO $ print $ typename (Proxy :: Proxy TaglessType)
-
+      liftIO $ print tss
 
       or (isJust . preview _TaglessType <$> taglessType) `shouldBe` True
 
     it "toArbitraryConstructorList of a sum type creates an instance with each constructor" $ do
       -- remove the constructor tags
       sumTypes <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String,SumType)])
+      tss <- generate (genericToADTArbitrary (Proxy :: Proxy SumType))
+      liftIO $ print tss
       and
         [ or $ isJust . preview _SumType1 <$> sumTypes
         , or $ isJust . preview _SumType2 <$> sumTypes
@@ -100,6 +100,8 @@ spec =
 
     it "toArbitraryConstructorList of a sum of sum types creates an instance with each constructor of the top level" $ do
       sumOfSums <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, SumOfSums)])
+      tss <- generate (genericToADTArbitrary (Proxy :: Proxy SumOfSums))
+      liftIO $ print tss
       and
         [ or $ isJust . preview _SSBareSumType <$> sumOfSums
         , or $ isJust . preview _SSSumType <$> sumOfSums
@@ -111,7 +113,8 @@ spec =
       productTypes <- generate (toArbitraryConstructorList :: Gen [(String,ProductType)])
       tt <- generate (genericToADTArbitrarySingleton (Proxy :: Proxy ProductType))
       liftIO $ print tt
-      --liftIO $ print $ GHC.Generics.to . snd . arbitraryConstructor $ tt
+      tss <- generate (genericToADTArbitrary (Proxy :: Proxy ProductType))
+      liftIO $ print tss
       length productTypes `shouldBe` 1
 
 main :: IO ()
