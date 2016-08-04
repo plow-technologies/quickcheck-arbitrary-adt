@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveGeneric    #-}
-{-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Test.QuickCheck.Arbitrary.ADTSpec (main, spec) where
 
@@ -15,14 +16,19 @@ import           Test.Hspec
 import           Test.QuickCheck
 import           Test.QuickCheck.Arbitrary.ADT
 
+
+import           Data.Proxy
+
 -- | A tagless type has constructor which has no parameters. It has U1 in its
 -- `GHC.Generics` representation.
 data TaglessType = TaglessType
   deriving (Eq,Generic,Show)
 
-instance ToArbitraryConstructor TaglessType
+instance ToADTArbitrary TaglessType
 instance Arbitrary TaglessType where
   arbitrary = genericArbitrary
+
+--instance GToArbitraryConstructorT TaglessType
 
 $(makePrisms ''TaglessType)
 
@@ -35,7 +41,7 @@ data SumType = SumType1 Int
              | SumType4 String [String] [Int] Double
   deriving (Eq,Generic,Show)
 
-instance ToArbitraryConstructor SumType
+instance ToADTArbitrary SumType
 instance Arbitrary SumType where
   arbitrary = genericArbitrary
 
@@ -47,7 +53,7 @@ data SumOfSums = SSBareSumType TaglessType
                | SSSumType SumType
   deriving (Eq,Generic,Show)
 
-instance ToArbitraryConstructor SumOfSums
+instance ToADTArbitrary SumOfSums
 instance Arbitrary SumOfSums where
   arbitrary = genericArbitrary
 
@@ -61,42 +67,67 @@ data ProductType = ProductType {
 , age  :: Int
 } deriving (Eq,Generic,Show)
 
-instance ToArbitraryConstructor ProductType
+instance ToADTArbitrary ProductType
 instance Arbitrary ProductType where
   arbitrary = genericArbitrary
 
-$(makePrisms ''ProductType)
+
+data PolymorphicParameterProductType a = PolymorphicParameterProductType {
+  firstItem  :: Int
+, secondItem :: a
+} deriving (Eq,Show,Generic)
+
+instance ToADTArbitrary (PolymorphicParameterProductType String)
+instance Arbitrary (PolymorphicParameterProductType String) where
+  arbitrary = genericArbitrary
+
 
 spec :: Spec
 spec =
-  describe "QuickCheck Arbitrary ADT: ToArbitraryConstructor type class" $ do
-    it "toArbitraryConstructorList of a tagless type should create an instance of the bare constructor" $ do
-      taglessType <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, TaglessType)])
-      or (isJust . preview _TaglessType <$> taglessType) `shouldBe` True
+  describe "QuickCheck Arbitrary ADT: ToADTArbitrary type class" $ do
+    it "toADTArbitrary of a tagless type should create an instance of the bare constructor" $ do
+      _                    <- generate (toADTArbitrarySingleton (Proxy :: Proxy TaglessType))
+      taglessType          <- generate (toADTArbitrary (Proxy :: Proxy TaglessType))
+      let taglessTypeArbitraries = _capArbitrary <$> _adtCAPs taglessType
+      or (isJust . preview _TaglessType <$> taglessTypeArbitraries) `shouldBe` True
 
-    it "toArbitraryConstructorList of a sum type creates an instance with each constructor" $ do
-      -- remove the constructor tags
-      sumTypes <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String,SumType)])
+    it "toADTArbitrary of a sum type creates an instance with each constructor" $ do
+      _        <- generate (toADTArbitrarySingleton (Proxy :: Proxy SumType))
+      sumTypes <- generate (toADTArbitrary (Proxy :: Proxy SumType))
+      let sumTypeArbitraries = _capArbitrary <$> _adtCAPs sumTypes
+
       and
-        [ or $ isJust . preview _SumType1 <$> sumTypes
-        , or $ isJust . preview _SumType2 <$> sumTypes
-        , or $ isJust . preview _SumType3 <$> sumTypes
-        , or $ isJust . preview _SumType4 <$> sumTypes
-        , length sumTypes == 4
+        [ or $ isJust . preview _SumType1 <$> sumTypeArbitraries
+        , or $ isJust . preview _SumType2 <$> sumTypeArbitraries
+        , or $ isJust . preview _SumType3 <$> sumTypeArbitraries
+        , or $ isJust . preview _SumType4 <$> sumTypeArbitraries
+        , length sumTypeArbitraries == 4
         ] `shouldBe` True
 
-    it "toArbitraryConstructorList of a sum of sum types creates an instance with each constructor of the top level" $ do
-      sumOfSums <- fmap snd <$> generate (toArbitraryConstructorList :: Gen [(String, SumOfSums)])
+    it "toADTArbitrary of a sum of sum types creates an instance with each constructor of the top level" $ do
+      _         <- generate (toADTArbitrarySingleton (Proxy :: Proxy SumOfSums))
+      sumOfSums <- generate (toADTArbitrary (Proxy :: Proxy SumOfSums))
+      let sumOfSumsArbitraries = _capArbitrary <$> _adtCAPs sumOfSums
       and
-        [ or $ isJust . preview _SSBareSumType <$> sumOfSums
-        , or $ isJust . preview _SSSumType <$> sumOfSums
-        , length sumOfSums == 2
+        [ or $ isJust . preview _SSBareSumType <$> sumOfSumsArbitraries
+        , or $ isJust . preview _SSSumType <$> sumOfSumsArbitraries
+        , length sumOfSumsArbitraries == 2
         ] `shouldBe` True
 
+    it "toADTArbitrary of a product type creates a single instance" $ do
+      _           <- generate (toADTArbitrarySingleton (Proxy :: Proxy ProductType))
+      productType <- generate (toADTArbitrary (Proxy :: Proxy ProductType))
+      let productTypeArbitraries = _capArbitrary <$> _adtCAPs productType
 
-    it "toArbitraryConstructorList of a product type creates a single instance" $ do
-      productTypes <- generate (toArbitraryConstructorList :: Gen [(String,ProductType)])
-      length productTypes `shouldBe` 1
+      length productTypeArbitraries `shouldBe` 1
+
+    it "toADTArbitrary of a product type that has a polymorphic parameter should work as well" $ do
+      _           <- generate (toADTArbitrarySingleton (Proxy :: Proxy (PolymorphicParameterProductType String)))
+      productType <- generate (toADTArbitrary (Proxy :: Proxy (PolymorphicParameterProductType String)))
+      let productTypeArbitraries = _capArbitrary <$> _adtCAPs productType
+
+      length productTypeArbitraries `shouldBe` 1
+
 
 main :: IO ()
 main = hspec spec
