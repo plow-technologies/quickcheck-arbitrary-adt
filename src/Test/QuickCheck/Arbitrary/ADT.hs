@@ -36,8 +36,6 @@ import           Data.Typeable
 
 import           GHC.Generics
 
-import           Safe (headMay)
-
 import           Test.QuickCheck.Arbitrary
 import           Test.QuickCheck.Gen
 

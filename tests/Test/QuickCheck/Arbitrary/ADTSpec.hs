@@ -5,14 +5,11 @@
 module Test.QuickCheck.Arbitrary.ADTSpec (main, spec) where
 
 import           Control.Lens
-import           Control.Monad.IO.Class
 
 import           Data.Maybe          (isJust)
 import           Data.Proxy
 
 import           GHC.Generics
-
-import           Language.Haskell.TH
 
 import           Test.Hspec
 import           Test.QuickCheck
@@ -27,8 +24,6 @@ data TaglessType = TaglessType
 instance ToADTArbitrary TaglessType
 instance Arbitrary TaglessType where
   arbitrary = genericArbitrary
-
---instance GToArbitraryConstructorT TaglessType
 
 $(makePrisms ''TaglessType)
 
