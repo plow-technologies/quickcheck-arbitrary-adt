@@ -1,7 +1,7 @@
 name:                quickcheck-arbitrary-adt
 version:             0.1.0.0
 synopsis:            Generic typeclasses for generating arbitrary ADTs
-description:         Please see README.md
+description:         Improve arbitrary value generation for ADTs
 homepage:            https://github.com/plow-technologies/quickcheck-arbitrary-adt#readme
 license:             BSD3
 license-file:        LICENSE

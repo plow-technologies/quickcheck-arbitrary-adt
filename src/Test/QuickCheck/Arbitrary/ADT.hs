@@ -15,9 +15,9 @@ module Test.QuickCheck.Arbitrary.ADT (
 
   -- * Data types
   -- $datatypes
-    ConstructorArbitraryPair
-  , ADTArbitrarySingleton
-  , ADTArbitrary
+    ConstructorArbitraryPair(..)
+  , ADTArbitrarySingleton(..)
+  , ADTArbitrary(..)
 
   -- * Type classes
   -- $typeclasses
@@ -25,12 +25,13 @@ module Test.QuickCheck.Arbitrary.ADT (
 
   -- * Generic type classes
   -- $generictypeclasses
-  , GToADTArbitrarySingleton
-  , GToADTArbitrary
+  , GToADTArbitrarySingleton(..)
+  , GToADTArbitrary(..)
   , GArbitrary(..)
   , genericArbitrary
 
   ) where
+
 import           Data.Typeable
 
 import           GHC.Generics
@@ -90,7 +91,7 @@ instance (Arbitrary a) => Arbitrary (ADTArbitrary a) where
 
 -- | ToADTArbitrary generalizes the production of arbitrary values for Sum types.
 -- and Product types.
-class ToADTArbitrary a where
+class (Arbitrary a) => ToADTArbitrary a where
   -- {-# MINIMAL toADTArbitrarySingleton, toADTArbitrary #-}
   -- | produce an arbitrary instance of one random constructor
   toADTArbitrarySingleton :: Proxy a -> Gen (ADTArbitrarySingleton a)

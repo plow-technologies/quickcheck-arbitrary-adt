@@ -89,8 +89,7 @@ spec =
       _                    <- generate (toADTArbitrarySingleton (Proxy :: Proxy TaglessType))
       taglessType          <- generate (toADTArbitrary (Proxy :: Proxy TaglessType))
       let taglessTypeArbitraries = _capArbitrary <$> _adtCAPs taglessType
-      --or (isJust . preview _TaglessType <$> taglessTypeArbitraries) `shouldBe` True
-      True `shouldBe` True
+      or (isJust . preview _TaglessType <$> taglessTypeArbitraries) `shouldBe` True
 
     it "toADTArbitrary of a sum type creates an instance with each constructor" $ do
       _        <- generate (toADTArbitrarySingleton (Proxy :: Proxy SumType))
