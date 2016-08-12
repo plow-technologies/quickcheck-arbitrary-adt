@@ -1,0 +1,64 @@
+incomplete information how to make a manual instance
+
+--
+-- $manual
+--
+-- In many cases you will want to write the instance of `Arbitrary` by hand to
+-- restrict the size and shape of the arbitrary values. This also gives you an
+-- idea of what code is automatically generated if you use the Generic version.
+--
+-- > import Data.Proxy
+-- > import Test.QuickCheck
+-- > import Test.QuickCheck.Arbitrary.ADT
+-- >
+-- > -- Sum Type, multiple constructors with parameters
+-- > data Fruit = Apple  Int
+-- >            | Orange String Int
+-- >            | PassionFruit Int String Int
+-- >   deriving (Show)
+-- >
+-- > -- Product Type, single constructor
+-- > data Person = Person {
+-- >   name :: String
+-- > , age  :: Int
+-- > } deriving (Show)
+-- >
+-- > instance Arbitrary Fruit where
+-- >   arbitrary = oneof [
+-- >       Apple <$> arbitrary
+-- >     , Orange <$> arbitrary <*> arbitrary
+-- >     , PassionFruit <$> arbitrary <*> arbitrary <*> arbitrary
+-- >     ]
+-- >
+-- > instance `ToADTArbitrary` Fruit
+-- >   toADTArbitrarySingleton _ = generate (arbitrary :: Gen Fruit)
+-- >   toADTArbitrary _ = sequence $ generate <$> [Apple <$> arbitrary, Orange <$> arbitrary <*> arbitrary, PassionFruit <$> arbitrary <*> arbitrary <*> arbitrary]
+-- >
+-- > instance Arbitrary Person where
+-- >   arbitrary = Person <$> arbitrary <*> arbitrary
+-- >
+-- > instance `ToADTArbitrary` Person
+
+instance ToADTArbitrary Fruit where
+  toADTArbitrarySingleton _ = arbitrary :: Gen Fruit
+  toADTArbitrary _ = sequence [Apple <$> arbitrary, Orange <$> arbitrary <*> arbitrary, PassionFruit <$> arbitrary <*> arbitrary <*> arbitrary]
+
+genFruit :: Gen (ADTArbitrarySingleton Fruit)
+genFruit = oneof <$> [
+    ConstructorArbitraryPair "Apple" (Apple <$> arbitrary)
+  , Orange <$> arbitrary <*> arbitrary
+  , PassionFruit <$> arbitrary <*> arbitrary <*> arbitrary
+  ]
+
+data ADTArbitrarySingleton a = ADTArbitrarySingleton {
+  _adtasTypeName :: String
+, _adtasCAP      :: ConstructorArbitraryPair a
+} deriving (Eq,Generic,Read,Show,Typeable)
+
+data ConstructorArbitraryPair a = ConstructorArbitraryPair {
+  _capConstructor :: String
+, _capArbitrary   :: a
+} deriving (Eq,Generic,Read,Show,Typeable)
+
+
+sequence [Apple <$> arbitrary, Orange <$> arbitrary <*> arbitrary, PassionFruit <$> arbitrary <*> arbitrary <*> arbitrary]
