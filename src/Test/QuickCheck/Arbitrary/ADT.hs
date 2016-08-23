@@ -1,6 +1,14 @@
+{-|
+Module      : Test.QuickCheck.Arbitrary.ADT
+Description : Generate arbitrary values for all constructors
+Copyright   : Plow Technologies LLC
+License     : BSD3
+Maintainer  : mchaver@gmail.com
+Stability   : Beta
 
--- | Type classes to assist random generation of values for various types of
--- abstract data types.
+Type classes to assist random generation of values for various types of
+abstract data types.
+-}
 
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DefaultSignatures   #-}
@@ -45,11 +53,11 @@ import           Test.QuickCheck.Gen
 -- | ConstructorArbitraryPair holds the construct name as a string and an
 -- arbitrary instance of that constructor.
 data ConstructorArbitraryPair a = ConstructorArbitraryPair {
-  _capConstructor :: String
-, _capArbitrary   :: a
+  capConstructor :: String
+, capArbitrary   :: a
 } deriving (Eq,Generic,Read,Show,Typeable)
 
--- | fmap applies a function to `_capArbitrary`
+-- | fmap applies a function to `capArbitrary`
 instance Functor ConstructorArbitraryPair where
   fmap f (ConstructorArbitraryPair c a) = ConstructorArbitraryPair c (f a)
 
@@ -58,31 +66,32 @@ instance (Arbitrary a) => Arbitrary (ConstructorArbitraryPair a) where
 
 -- | ADTArbitrarySingleton holds the type name and one ConstructorArbitraryPair.
 data ADTArbitrarySingleton a = ADTArbitrarySingleton {
-  _adtasTypeName :: String
-, _adtasCAP      :: ConstructorArbitraryPair a
+  adtasModuleName :: String
+, adtasTypeName   :: String
+, adtasCAP        :: ConstructorArbitraryPair a
 } deriving (Eq,Generic,Read,Show,Typeable)
 
--- | fmap applies a function to the ConstructorArbitraryPair in _adtasCAP.
+-- | fmap applies a function to the ConstructorArbitraryPair in adtasCAP.
 instance Functor ADTArbitrarySingleton where
-  fmap f (ADTArbitrarySingleton t c) = ADTArbitrarySingleton t (f <$> c)
+  fmap f (ADTArbitrarySingleton m t c) = ADTArbitrarySingleton m t (f <$> c)
 
 instance (Arbitrary a) => Arbitrary (ADTArbitrarySingleton a) where
-  arbitrary = ADTArbitrarySingleton <$> arbitrary <*> arbitrary
+  arbitrary = ADTArbitrarySingleton <$> arbitrary <*> arbitrary <*> arbitrary
 
 -- | ADTArbitrary holds the type name and a ConstructorArbitraryPair
 -- for each constructor.
 data ADTArbitrary a = ADTArbitrary {
-  _adtTypeName :: String
-, _adtCAPs     :: [ConstructorArbitraryPair a]
+  adtModuleName :: String
+, adtTypeName   :: String
+, adtCAPs       :: [ConstructorArbitraryPair a]
 } deriving (Eq,Generic,Read,Show,Typeable)
 
--- | fmap applies a function to each ConstructorArbitraryPair in _adtCAPs.
+-- | fmap applies a function to each ConstructorArbitraryPair in adtCAPs.
 instance Functor ADTArbitrary where
-  fmap f (ADTArbitrary t cs) = ADTArbitrary t (fmap f <$> cs)
+  fmap f (ADTArbitrary m t cs) = ADTArbitrary m t (fmap f <$> cs)
 
 instance (Arbitrary a) => Arbitrary (ADTArbitrary a) where
-  arbitrary = ADTArbitrary <$> arbitrary <*> arbitrary
-
+  arbitrary = ADTArbitrary <$> arbitrary <*> arbitrary <*> arbitrary
 
 
 -- $typeclasses
@@ -122,7 +131,7 @@ class GToADTArbitrarySingleton rep where
   gToADTArbitrarySingleton :: Proxy rep -> Gen (ADTArbitrarySingleton (rep a))
 
 instance GToADTArbitrarySingleton U1 where
-  gToADTArbitrarySingleton _ = pure $ ADTArbitrarySingleton "" $ ConstructorArbitraryPair "" U1
+  gToADTArbitrarySingleton _ = pure $ ADTArbitrarySingleton "" "" $ ConstructorArbitraryPair "" U1
 
 instance (GToADTArbitrarySingleton l, GToADTArbitrarySingleton r) => GToADTArbitrarySingleton (l :+: r) where
   gToADTArbitrarySingleton _ = do
@@ -134,13 +143,14 @@ instance (GToADTArbitrarySingleton l, GToADTArbitrarySingleton r) => GToADTArbit
   gToADTArbitrarySingleton _ = do
     x <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy l)
     y <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy r)
-    return $ ADTArbitrarySingleton  "" $ ConstructorArbitraryPair "" (x :*: y)
+    return $ ADTArbitrarySingleton "" "" $ ConstructorArbitraryPair "" (x :*: y)
     where
-      getArb = _capArbitrary . _adtasCAP
+      getArb = capArbitrary . adtasCAP
 
 instance Arbitrary a => GToADTArbitrarySingleton (K1 i a) where
   gToADTArbitrarySingleton _ = ADTArbitrarySingleton
                            <$> pure ""
+                           <*> pure ""
                            <*>  ( ConstructorArbitraryPair
                               <$> pure ""
                               <*> K1 <$> arbitrary
@@ -149,32 +159,36 @@ instance Arbitrary a => GToADTArbitrarySingleton (K1 i a) where
 instance (Constructor c, GToADTArbitrarySingleton rep) => GToADTArbitrarySingleton (M1 C c rep) where
   gToADTArbitrarySingleton _ = ADTArbitrarySingleton
                            <$> pure ""
+                           <*> pure ""
                            <*> ( ConstructorArbitraryPair con <$> ac)
     where
       kRep = gToADTArbitrarySingleton (Proxy :: Proxy rep)
-      ac   = M1 . _capArbitrary . _adtasCAP <$> kRep
+      ac   = M1 . capArbitrary . adtasCAP <$> kRep
       con = conName (undefined :: M1 C c rep ())
 
 instance (Datatype t, Typeable t, GToADTArbitrarySingleton rep) => GToADTArbitrarySingleton (M1 D t rep) where
   gToADTArbitrarySingleton _ =  ADTArbitrarySingleton
-                             <$> pure t
+                             <$> pure m
+                             <*> pure t
                              <*>  ( ConstructorArbitraryPair
-                                 <$> (_capConstructor . _adtasCAP <$> kRep)
+                                 <$> (capConstructor . adtasCAP <$> kRep)
                                  <*> ac)
     where
       kRep = gToADTArbitrarySingleton (Proxy :: Proxy rep)
-      ac   = M1 . _capArbitrary . _adtasCAP <$> kRep
+      ac   = M1 . capArbitrary . adtasCAP <$> kRep
+      m    = moduleName (undefined :: M1 D t rep ())
       t    = datatypeName (undefined :: M1 D t rep ())
 
 instance GToADTArbitrarySingleton rep => GToADTArbitrarySingleton (M1 S t rep) where
   gToADTArbitrarySingleton _ = ADTArbitrarySingleton
                             <$> pure ""
+                            <*> pure ""
                             <*>  ( ConstructorArbitraryPair
                                 <$> pure ""
                                 <*> ac)
     where
       kRep = gToADTArbitrarySingleton (Proxy :: Proxy rep)
-      ac   = M1 . _capArbitrary . _adtasCAP <$> kRep
+      ac   = M1 . capArbitrary . adtasCAP <$> kRep
 
 
 
@@ -187,25 +201,26 @@ class GToADTArbitrary rep where
   gToADTArbitrary :: Proxy rep -> Gen (ADTArbitrary (rep a))
 
 instance GToADTArbitrary U1 where
-  gToADTArbitrary _ = pure $ ADTArbitrary "" [ConstructorArbitraryPair "" U1]
+  gToADTArbitrary _ = pure $ ADTArbitrary "" "" [ConstructorArbitraryPair "" U1]
 
 instance (GToADTArbitrary l, GToADTArbitrary r) => GToADTArbitrary (l :+: r) where
   gToADTArbitrary _ = do
     a <- fmap L1 <$> gToADTArbitrary (Proxy :: Proxy l)
     b <- fmap R1 <$> gToADTArbitrary (Proxy :: Proxy r)
-    return $ ADTArbitrary "" (_adtCAPs a ++ _adtCAPs b)
+    return $ ADTArbitrary "" "" (adtCAPs a ++ adtCAPs b)
 
 instance (GToADTArbitrarySingleton l, GToADTArbitrary l, GToADTArbitrarySingleton r, GToADTArbitrary r) => GToADTArbitrary (l :*: r) where
   gToADTArbitrary _ = do
     x <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy l)
     y <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy r)
-    return $ ADTArbitrary "" [ConstructorArbitraryPair "" (x :*: y)]
+    return $ ADTArbitrary "" "" [ConstructorArbitraryPair "" (x :*: y)]
     where
-      getArb = _capArbitrary . _adtasCAP
+      getArb = capArbitrary . adtasCAP
 
 instance Arbitrary a => GToADTArbitrary (K1 i a) where
   gToADTArbitrary _ = ADTArbitrary
                         <$> pure ""
+                        <*> pure ""
                         <*> (:[]) <$> genCap
     where
       arb    = arbitrary :: Gen a
@@ -213,34 +228,37 @@ instance Arbitrary a => GToADTArbitrary (K1 i a) where
 
 -- constructor level
 instance (Constructor c, GToADTArbitrary rep) => GToADTArbitrary (M1 C c rep) where
-  gToADTArbitrary _ = ADTArbitrary <$> pure "" <*> (:[]) . ConstructorArbitraryPair con <$> ac
+  gToADTArbitrary _ = ADTArbitrary <$> pure "" <*> pure "" <*> (:[]) . ConstructorArbitraryPair con <$> ac
     where
       kRep = gToADTArbitrary (Proxy :: Proxy rep)
-      ac   = M1 . _capArbitrary . head . _adtCAPs <$> kRep
-      con = conName (undefined :: M1 C c rep ())
+      ac   = M1 . capArbitrary . head . adtCAPs <$> kRep
+      con  = conName (undefined :: M1 C c rep ())
 
 -- type level
 instance (Datatype t, GToADTArbitrary rep) => GToADTArbitrary (M1 D t rep) where
-  gToADTArbitrary _ =  ADTArbitrary <$> pure t <*> m1caps
+  gToADTArbitrary _ =  ADTArbitrary <$> pure m <*> pure t <*> m1caps
     where
-      kRep = gToADTArbitrary (Proxy :: Proxy rep)
-      caps  = _adtCAPs <$> kRep
+      kRep   = gToADTArbitrary (Proxy :: Proxy rep)
+      caps   = adtCAPs <$> kRep
       m1caps = (fmap . fmap) M1 <$> caps
-      t    = datatypeName (undefined :: M1 D t rep ())
+      m      = moduleName (undefined :: M1 D t rep ())
+      t      = datatypeName (undefined :: M1 D t rep ())
 
 -- selector level
 instance GToADTArbitrary rep => GToADTArbitrary (M1 S t rep) where
   gToADTArbitrary _ = ADTArbitrary
                             <$> pure ""
+                            <*> pure ""
                             <*> (:[]) <$> (ConstructorArbitraryPair "" <$> ac)
     where
       kRep = gToADTArbitrary (Proxy :: Proxy rep)
-      ac   = M1 . _capArbitrary . head . _adtCAPs <$> kRep
+      ac   = M1 . capArbitrary . head . adtCAPs <$> kRep
 
 
 -- | GArbitrary is a typeclass for generalizing the creation of single arbitrary
 -- product and sum types. It creates an arbitrary generating function of this
--- style: TypeName <$> arbitrary <*> arbitrary.
+-- style: @TypeName \<$\> arbitrary \<*\> arbitrary@.
+--
 
 class GArbitrary rep where
   gArbitrary :: Gen (rep a)
@@ -263,6 +281,8 @@ instance Arbitrary a => GArbitrary (K1 i a) where
 instance GArbitrary rep => GArbitrary (M1 i t rep) where
   gArbitrary = M1 <$> gArbitrary
 
+-- | Create a arbitrary generator for a specified a type in a naive way. Please
+-- be careful when using this function, particularly for recursive types.
 genericArbitrary :: (Generic a, GArbitrary (Rep a)) => Gen a
 genericArbitrary = to <$> gArbitrary
 
@@ -312,31 +332,35 @@ genericArbitrary = to <$> gArbitrary
 -- @
 -- λ> generate (toADTArbitrarySingleton (Proxy :: Proxy Fruit))
 -- ADTArbitrarySingleton {
---   _adtasTypeName = \"Fruit\"
--- , _adtasCAP = ConstructorArbitraryPair {
---     _capConstructor = \"Apple\", _capArbitrary = Apple 30}}
+--   adtasModuleName = \"Ghci1\"
+-- , adtasTypeName = \"Fruit\"
+-- , adtasCAP = ConstructorArbitraryPair {
+--     capConstructor = \"Apple\", capArbitrary = Apple 30}}
 --
 -- λ> generate (toADTArbitrary (Proxy :: Proxy Fruit))
 -- ADTArbitrary {
---   _adtTypeName = \"Fruit\"
--- , _adtCAPs = [
+--   adtModuleName = \"Ghci1\"
+-- , adtTypeName = \"Fruit\"
+-- , adtCAPs = [
 --     ConstructorArbitraryPair {
---         _capConstructor = \"Apple\"
---       , _capArbitrary = Apple 17}
+--         capConstructor = \"Apple\"
+--       , capArbitrary = Apple 17}
 --   , ConstructorArbitraryPair {
---         _capConstructor = \"Orange\"
---       , _capArbitrary = Orange \"abcdef\" 18}
+--         capConstructor = \"Orange\"
+--       , capArbitrary = Orange \"abcdef\" 18}
 --   , ConstructorArbitraryPair {
---         _capConstructor = \"PassionFruit\"
---       , _capArbitrary = PassionFruit 16 "datadata" 6}]}
+--         capConstructor = \"PassionFruit\"
+--       , capArbitrary = PassionFruit 16 "datadata" 6}]}
 --
 -- λ> generate (toADTArbitrarySingleton (Proxy :: Proxy Person))
 -- ADTArbitrarySingleton {
---   _adtasTypeName = \"Person\"
--- , _adtasCAP = ConstructorArbitraryPair {_capConstructor = \"Person\", _capArbitrary = Person {name = "John Doe", age = 30}}}
+--   adtasModuleName = \"Ghci1\"
+-- , adtasTypeName = \"Person\"
+-- , adtasCAP = ConstructorArbitraryPair {capConstructor = \"Person\", capArbitrary = Person {name = "John Doe", age = 30}}}
 --
 -- λ> generate (toADTArbitrary (Proxy :: Proxy Person))
 -- ADTArbitrary {
---   _adtTypeName = \"Person\"
--- , _adtCAPs = [ConstructorArbitraryPair {_capConstructor = \"Person\", _capArbitrary = Person {name = "Jane Doe", age = 15}}]}
+--   adtModuleName = \"Ghci1\"
+-- , adtTypeName = \"Person\"
+-- , adtCAPs = [ConstructorArbitraryPair {capConstructor = \"Person\", capArbitrary = Person {name = "Jane Doe", age = 15}}]}
 -- @

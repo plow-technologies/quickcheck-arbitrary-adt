@@ -1,5 +1,5 @@
 name:                quickcheck-arbitrary-adt
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Generic typeclasses for generating arbitrary ADTs
 description:         Improve arbitrary value generation for ADTs
 homepage:            https://github.com/plow-technologies/quickcheck-arbitrary-adt#readme
@@ -11,6 +11,7 @@ copyright:           2016 James M.C. Haver II
 category:            Testing
 build-type:          Simple
 cabal-version:       >=1.10
+stability:           Beta
 
 library
   hs-source-dirs:      src

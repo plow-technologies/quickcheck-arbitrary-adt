@@ -83,13 +83,13 @@ spec =
     it "toADTArbitrary of a tagless type should create an instance of the bare constructor" $ do
       _                    <- generate (toADTArbitrarySingleton (Proxy :: Proxy TaglessType))
       taglessType          <- generate (toADTArbitrary (Proxy :: Proxy TaglessType))
-      let taglessTypeArbitraries = _capArbitrary <$> _adtCAPs taglessType
+      let taglessTypeArbitraries = capArbitrary <$> adtCAPs taglessType
       or (isJust . preview _TaglessType <$> taglessTypeArbitraries) `shouldBe` True
 
     it "toADTArbitrary of a sum type creates an instance with each constructor" $ do
       _        <- generate (toADTArbitrarySingleton (Proxy :: Proxy SumType))
       sumTypes <- generate (toADTArbitrary (Proxy :: Proxy SumType))
-      let sumTypeArbitraries = _capArbitrary <$> _adtCAPs sumTypes
+      let sumTypeArbitraries = capArbitrary <$> adtCAPs sumTypes
 
       and
         [ or $ isJust . preview _SumType1 <$> sumTypeArbitraries
@@ -102,7 +102,7 @@ spec =
     it "toADTArbitrary of a sum of sum types creates an instance with each constructor of the top level" $ do
       _         <- generate (toADTArbitrarySingleton (Proxy :: Proxy SumOfSums))
       sumOfSums <- generate (toADTArbitrary (Proxy :: Proxy SumOfSums))
-      let sumOfSumsArbitraries = _capArbitrary <$> _adtCAPs sumOfSums
+      let sumOfSumsArbitraries = capArbitrary <$> adtCAPs sumOfSums
       and
         [ or $ isJust . preview _SSBareSumType <$> sumOfSumsArbitraries
         , or $ isJust . preview _SSSumType <$> sumOfSumsArbitraries
@@ -112,14 +112,14 @@ spec =
     it "toADTArbitrary of a product type creates a single instance" $ do
       _           <- generate (toADTArbitrarySingleton (Proxy :: Proxy ProductType))
       productType <- generate (toADTArbitrary (Proxy :: Proxy ProductType))
-      let productTypeArbitraries = _capArbitrary <$> _adtCAPs productType
+      let productTypeArbitraries = capArbitrary <$> adtCAPs productType
 
       length productTypeArbitraries `shouldBe` 1
 
     it "toADTArbitrary of a product type that has a polymorphic parameter should work as well" $ do
       _           <- generate (toADTArbitrarySingleton (Proxy :: Proxy (PolymorphicParameterProductType String)))
       productType <- generate (toADTArbitrary (Proxy :: Proxy (PolymorphicParameterProductType String)))
-      let productTypeArbitraries = _capArbitrary <$> _adtCAPs productType
+      let productTypeArbitraries = capArbitrary <$> adtCAPs productType
 
       length productTypeArbitraries `shouldBe` 1
 
