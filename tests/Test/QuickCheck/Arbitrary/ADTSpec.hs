@@ -4,17 +4,18 @@
 
 module Test.QuickCheck.Arbitrary.ADTSpec (main, spec) where
 
-import           Control.Lens
-
-import           Data.Maybe          (isJust)
-import           Data.Proxy
-
-import           GHC.Generics
-
-import           Test.Hspec
-import           Test.QuickCheck
-import           Test.QuickCheck.Arbitrary.ADT
-
+-- base
+import Data.Maybe (isJust)
+import Data.Proxy
+import GHC.Generics
+-- hspec
+import Test.Hspec
+-- lens
+import Control.Lens
+-- QuickCheck
+import Test.QuickCheck
+-- quickcheck-adt-arbitrary
+import Test.QuickCheck.Arbitrary.ADT
 
 -- | A tagless type has constructor which has no parameters. It has U1 in its
 -- `GHC.Generics` representation.
