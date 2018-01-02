@@ -1,6 +1,6 @@
 # Revision history for quickcheck-arbitrary-adt
 
-## 0.2.0.1  -- 2018-01-02
+## 0.3.0.0  -- 2018-01-02
 
 * Remove unnecessary type class restrictions.
 * Clean up code and import style.
