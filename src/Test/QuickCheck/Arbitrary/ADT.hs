@@ -101,7 +101,7 @@ instance (Arbitrary a) => Arbitrary (ADTArbitrary a) where
 
 -- | ToADTArbitrary generalizes the production of arbitrary values for Sum types.
 -- and Product types.
-class (Arbitrary a) => ToADTArbitrary a where
+class ToADTArbitrary a where
   -- {-# MINIMAL toADTArbitrarySingleton, toADTArbitrary #-}
   -- | produce an arbitrary instance of one random constructor
   toADTArbitrarySingleton :: Proxy a -> Gen (ADTArbitrarySingleton a)
@@ -151,13 +151,13 @@ instance (GToADTArbitrarySingleton l, GToADTArbitrarySingleton r) => GToADTArbit
       getArb = capArbitrary . adtasCAP
 
 instance Arbitrary a => GToADTArbitrarySingleton (K1 i a) where
-  gToADTArbitrarySingleton _ = ADTArbitrarySingleton
-                           <$> pure ""
-                           <*> pure ""
-                           <*>  ( ConstructorArbitraryPair
-                              <$> pure ""
-                              <*> K1 <$> arbitrary
-                                )
+  gToADTArbitrarySingleton _ =
+    ADTArbitrarySingleton
+      <$> pure ""
+      <*> pure ""
+      <*> (ConstructorArbitraryPair
+            <$> pure ""
+            <*> K1 <$> arbitrary)
 
 instance (Constructor c, GToADTArbitrarySingleton rep) => GToADTArbitrarySingleton (M1 C c rep) where
   gToADTArbitrarySingleton _ =

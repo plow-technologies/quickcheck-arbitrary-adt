@@ -1,4 +1,10 @@
-# Revision history for onping-core-types
+# Revision history for quickcheck-arbitrary-adt
+
+## 0.2.0.1  -- 2018-01-02
+
+* Remove unnecessary type class restrictions.
+* Clean up code and import style.
+* Add non Generic derived type class instances in the tests.
 
 ## 0.2.0.0  -- 2016-08-23
 
