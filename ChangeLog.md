@@ -1,5 +1,9 @@
 # Revision history for quickcheck-arbitrary-adt
 
+## 0.3.1.0  -- 2018-01-04
+
+* Remove compiler flags 'Wredundant-constraints' and 'fprint-potential-instances'.
+
 ## 0.3.0.0  -- 2018-01-02
 
 * Remove unnecessary type class restrictions.
