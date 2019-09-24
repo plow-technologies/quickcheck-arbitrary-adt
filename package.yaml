@@ -28,6 +28,7 @@ tests:
     source-dirs: tests
     dependencies:
     - base
+    - bytestring
     - hspec
     - lens
     - template-haskell

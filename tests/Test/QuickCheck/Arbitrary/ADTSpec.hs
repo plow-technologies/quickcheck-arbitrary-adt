@@ -1,10 +1,12 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
 module Test.QuickCheck.Arbitrary.ADTSpec (main, spec) where
 
 -- base
+import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
 import Data.Proxy
 import GHC.Generics
@@ -16,6 +18,26 @@ import Control.Lens
 import Test.QuickCheck
 -- quickcheck-adt-arbitrary
 import Test.QuickCheck.Arbitrary.ADT
+
+newtype MyString = MyString ByteString
+  deriving (Eq,Generic,Show)
+
+-- instance ToADTArbitrary MyString
+instance Arbitrary MyString where
+  arbitrary = pure (MyString "Hello")
+
+instance ToADTArbitrary MyString where
+  toADTArbitrarySingleton Proxy =
+    ADTArbitrarySingleton "Test.QuickCheck.Arbitrary.ADTSpec" "MyString"
+      <$> oneof
+        [ ConstructorArbitraryPair "MyString" <$> arbitrary
+        ]
+
+  toADTArbitrary Proxy =
+    ADTArbitrary "Test.QuickCheck.Arbitrary.ADTSpec" "MyString"
+      <$> sequence
+        [ ConstructorArbitraryPair "MyString" <$> arbitrary
+        ]
 
 -- | A tagless type has constructor which has no parameters. It has U1 in its
 -- `GHC.Generics` representation.
