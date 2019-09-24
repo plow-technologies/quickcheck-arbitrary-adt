@@ -41,12 +41,13 @@ module Test.QuickCheck.Arbitrary.ADT (
   ) where
 
 -- base
-import Data.Typeable
-import GHC.Generics
+import Data.Typeable (Typeable, Proxy(Proxy))
+import GHC.Generics  (Generic, Constructor, Datatype, Rep, M1(M1), K1(K1),
+                      U1(U1), C, D, S, (:+:)(L1, R1), (:*:)((:*:)), conName,
+                      datatypeName, moduleName, to)
 
 -- QuickCheck
-import Test.QuickCheck.Arbitrary
-import Test.QuickCheck.Gen
+import Test.QuickCheck (Arbitrary, Gen, arbitrary)
 
 -- $datatypes
 

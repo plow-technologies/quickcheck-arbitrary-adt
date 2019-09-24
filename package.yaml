@@ -20,7 +20,7 @@ library:
   - QuickCheck
   ghc-options:
   - -Wall
-#  - -Werror
+  - -Werror
 
 tests:
   test:
