@@ -104,7 +104,7 @@ $(makePrisms ''SumOfSums)
 -- product type
 -- =====================================
 
--- | A product type has one constructor with one records. It has :*: and `M1 S s rep`
+-- | A product type has one constructor with one record. It has :*: and `M1 S s rep`
 -- in its `GHC.Generics` representation.
 data ProductType =
   ProductType
