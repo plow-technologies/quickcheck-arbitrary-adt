@@ -18,7 +18,7 @@ import           Control.Lens    (makePrisms, preview)
 -- testing
 import           Test.QuickCheck (Arbitrary, arbitrary, choose, generate, oneof, vector)
 import           Test.Hspec      (Spec, describe, it, shouldBe)
-import           Test.QuickCheck.Arbitrary.ADT (arbitraryAdt, adtCAPs, capArbitrary)
+import           Test.QuickCheck.Arbitrary.ADT (arbitraryAdt, adtCAPs, capArbitrary, capConstructor)
 
 -- =============================================================================
 -- Test types 
@@ -168,3 +168,29 @@ spec = do
       let productTypeArbitraries = capArbitrary <$> adtCAPs productType
 
       length productTypeArbitraries `shouldBe` 1
+
+    it "non-adt types" $ do
+      -- int
+      int <- generate (arbitraryAdt (Proxy :: Proxy Int))
+      let intArbitraries = capArbitrary <$> adtCAPs int
+      length intArbitraries `shouldBe` 1
+      (capConstructor <$> adtCAPs int) `shouldBe` ["Int Literal"]
+
+      -- float
+      float <- generate (arbitraryAdt (Proxy :: Proxy Float))
+      let floatArbitraries = capArbitrary <$> adtCAPs float
+      length floatArbitraries `shouldBe` 1
+      (capConstructor <$> adtCAPs float) `shouldBe` ["Float Literal"]
+
+      -- double
+      double <- generate (arbitraryAdt (Proxy :: Proxy Double))
+      let doubleArbitraries = capArbitrary <$> adtCAPs double
+      length doubleArbitraries `shouldBe` 1
+      (capConstructor <$> adtCAPs double) `shouldBe` ["Float Literal"]
+      
+      -- char
+      char <- generate (arbitraryAdt (Proxy :: Proxy Char))
+      let charArbitraries = capArbitrary <$> adtCAPs char
+      length charArbitraries `shouldBe` 1
+      (capConstructor <$> adtCAPs char) `shouldBe` ["Char Literal"]
+      

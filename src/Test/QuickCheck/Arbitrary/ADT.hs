@@ -33,7 +33,6 @@ module Test.QuickCheck.Arbitrary.ADT (
   , genericArbitrary
 
   -- * Arbitrary Abstract Data Type functions
-  , getConstructors
   , arbitraryWithConstructor
   , arbitraryForConstructors
   , arbitraryAdt
@@ -46,14 +45,20 @@ import Test.QuickCheck.Arbitrary.ADT.Legacy
    GToADTArbitrary(..), GArbitrary(..), genericArbitrary)
 
 import Control.Monad   (forM)
-import Data.Data       (Data, Constr, Proxy, dataTypeConstrs, dataTypeOf,
+import Data.Data       (Data, DataRep(AlgRep, CharRep, IntRep, FloatRep, NoRep),
+                        Constr, Proxy, dataTypeConstrs, dataTypeOf, dataTypeRep,
                         showConstr, toConstr)
 import Data.Typeable   (Typeable, tyConModule, tyConName, typeRepTyCon, typeRep)
 import Test.QuickCheck (Arbitrary, Gen, arbitrary)
 
--- | Get a list of all of the constructors of a type.
-getConstructors :: forall a. Data a => Proxy a -> [Constr]
-getConstructors _proxy = dataTypeConstrs $ dataTypeOf (undefined :: a)
+-- | Get a list of all of the constructors of a type. It crashes at runtime
+-- if the 'DataRep' is not 'AlgRep'.
+unsafeGetConstructors :: forall a. Data a => Proxy a -> [Constr]
+unsafeGetConstructors _proxy = dataTypeConstrs $ dataTypeOf (undefined :: a)
+
+-- | get the dataTypeRep for a type. Useful for matching only on 'AlgRep'.
+getDataRep :: forall a. Data a => Proxy a -> DataRep
+getDataRep _proxy = dataTypeRep $ dataTypeOf (undefined :: a)
 
 -- | Generate an arbitrary value for a given type constructor. It will loop
 -- idenfinitely until a type made with the provided constructor is found.
@@ -73,8 +78,9 @@ arbitraryWithConstructor constr = do
 -- does not  need to worry about breaking it.
 arbitraryForConstructors :: (Arbitrary a, Data a) => Proxy a -> Gen [a]
 arbitraryForConstructors proxy = do
-  let constructors = getConstructors proxy
-  mapM arbitraryWithConstructor constructors
+  case getDataRep proxy of
+    AlgRep _ -> mapM arbitraryWithConstructor $ unsafeGetConstructors proxy
+    _        -> (:[]) <$> arbitrary
 
 -- | Generate an arbitrary value for each type in a constructor. This includes
 -- the module name, the type name, and a list of the constructors as 'String's
@@ -83,11 +89,27 @@ arbitraryForConstructors proxy = do
 -- need to worry about breaking it.
 arbitraryAdt :: (Arbitrary a, Data a, Typeable a) => Proxy a -> Gen (ADTArbitrary a)
 arbitraryAdt proxy = do
-  let constructors = getConstructors proxy
-  let t = typeRepTyCon . typeRep $ proxy
-  pairs <- forM constructors
-           (\x -> do
-               a <- arbitraryWithConstructor x
-               pure $ ConstructorArbitraryPair (showConstr x) a
-           )
-  pure $ ADTArbitrary (tyConModule t) (tyConName t) pairs
+  let t = typeRepTyCon . typeRep $ proxy  
+  case getDataRep proxy of
+    AlgRep _ -> do
+      let constructors = unsafeGetConstructors proxy
+      pairs <- forM constructors
+               (\constr -> do
+                   arb <- arbitraryWithConstructor constr
+                   pure $ ConstructorArbitraryPair (showConstr constr) arb
+               )
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) pairs
+
+    IntRep -> do
+      arb <- arbitrary
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) [ConstructorArbitraryPair "Int Literal" arb]
+
+    FloatRep -> do
+      arb <- arbitrary
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) [ConstructorArbitraryPair "Float Literal" arb]
+
+    CharRep -> do
+      arb <- arbitrary
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) [ConstructorArbitraryPair "Char Literal" arb]
+
+    NoRep -> pure $ ADTArbitrary (tyConModule t) (tyConName t) []
