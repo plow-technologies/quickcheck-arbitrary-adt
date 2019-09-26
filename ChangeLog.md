@@ -7,6 +7,7 @@
   unless you are importing without qualification and there is a function name clash.
 * Provide a better solution without using typeclasses, 'arbitraryAdt'.
 * Include tests for new functions.
+* Update haddock documentation.
 
 ## 0.3.1.0 -- 2018-01-04
 
