@@ -6,7 +6,7 @@
 * Maintain old way of producing arbitrary adts. This package should not break anything,
   unless you are importing without qualification and there is a function name clash.
 * Provide a better solution without using typeclasses, 'arbitraryAdt'.
-* Include tests
+* Include tests for new functions.
 
 ## 0.3.1.0 -- 2018-01-04
 
