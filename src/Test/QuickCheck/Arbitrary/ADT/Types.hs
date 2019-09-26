@@ -1,7 +1,7 @@
 {-|
 Module      : Test.QuickCheck.Arbitrary.ADT.Types
-Description : Generate arbitrary values for all constructors
-Copyright   : Plow Technologies LLC
+Description : Shared types for modules in quickcheck-arbitrary-adt.
+Copyright   : (c) Plow Technologies LLC, 2016-2019
 License     : BSD3
 Maintainer  : mchaver@gmail.com
 
@@ -15,12 +15,13 @@ module Test.QuickCheck.Arbitrary.ADT.Types
   , ADTArbitrary(..)
   ) where
 
+-- base
 import Data.Data       (Data)
 import Data.Typeable   (Typeable)
 import GHC.Generics    (Generic)
-import Test.QuickCheck (Arbitrary, arbitrary)
 
--- $datatypes
+-- quickcheck
+import Test.QuickCheck (Arbitrary, arbitrary)
 
 -- | ConstructorArbitraryPair holds the construct name as a string and an
 -- arbitrary instance made with that constructor.

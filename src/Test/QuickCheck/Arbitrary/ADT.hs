@@ -1,12 +1,13 @@
 {-|
 Module      : Test.QuickCheck.Arbitrary.ADT
-Description : Generate arbitrary values for all constructors
-Copyright   : Plow Technologies LLC
+Description : Generate arbitrary values for all constructors of a type.
+Copyright   : (c) Plow Technologies LLC, 2016-2019
 License     : BSD3
 Maintainer  : mchaver@gmail.com
 
-Type classes to assist random generation of values for various types of
-abstract data types.
+A function that randomly generates a value for each constructor of an abstract
+data type. The type requires an instance of 'Data' and 'Arbitrary'.
+
 -}
 
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -15,27 +16,27 @@ module Test.QuickCheck.Arbitrary.ADT (
   -- * How to use this library
   -- $use
 
-  -- * Data types
-  -- $datatypes
-    ConstructorArbitraryPair(..)
-  , ADTArbitrarySingleton(..)
+  -- * Arbitrary abstract data type functions
+  -- $functions
+    arbitraryAdt
+  , arbitraryWithConstructor
+  , arbitraryForConstructors
+
+  -- Data types
+  , ConstructorArbitraryPair(..)
   , ADTArbitrary(..)
 
-  -- * Type classes
-  -- $typeclasses
+  -- * Legacy code
+  , ADTArbitrarySingleton(..)  
+
+  -- Type classes
   , ToADTArbitrary(..)
 
-  -- * Generic type classes
-  -- $generictypeclasses
+  -- Generic type classes
   , GToADTArbitrarySingleton(..)
   , GToADTArbitrary(..)
   , GArbitrary(..)
-  , genericArbitrary
-
-  -- * Arbitrary Abstract Data Type functions
-  , arbitraryWithConstructor
-  , arbitraryForConstructors
-  , arbitraryAdt
+  , genericArbitrary  
   ) where
 
 -- re-export
@@ -48,8 +49,10 @@ import Control.Monad   (forM)
 import Data.Data       (Data, DataRep(AlgRep, CharRep, IntRep, FloatRep, NoRep),
                         Constr, Proxy, dataTypeConstrs, dataTypeOf, dataTypeRep,
                         showConstr, toConstr)
-import Data.Typeable   (Typeable, tyConModule, tyConName, typeRepTyCon, typeRep)
+import Data.Typeable   (tyConModule, tyConName, typeRepTyCon, typeRep)
 import Test.QuickCheck (Arbitrary, Gen, arbitrary)
+
+-- $functions
 
 -- | Get a list of all of the constructors of a type. It crashes at runtime
 -- if the 'DataRep' is not 'AlgRep'.
@@ -64,8 +67,8 @@ getDataRep _proxy = dataTypeRep $ dataTypeOf (undefined :: a)
 -- idenfinitely until a type made with the provided constructor is found.
 -- It maybe slow on large sum types. This function is considered dangerous
 -- becausee you can provide a 'Constr' that does not much
--- type 'a' and it will give unexpected results. You are responsible for making
--- sure that 'Constr' is a constructor of type 'a'.
+-- type \'a\' and it will give unexpected results. You are responsible for making
+-- sure that 'Constr' is a constructor of type \'a\'.
 arbitraryWithConstructor :: (Arbitrary a, Data a) => Constr -> Gen a
 arbitraryWithConstructor constr = do
   a <- arbitrary
@@ -87,7 +90,7 @@ arbitraryForConstructors proxy = do
 -- paired with their arbitrarily generated value. It uses
 -- 'arbitraryWithConstructor' internally in a safe manner. The user does not
 -- need to worry about breaking it.
-arbitraryAdt :: (Arbitrary a, Data a, Typeable a) => Proxy a -> Gen (ADTArbitrary a)
+arbitraryAdt :: (Arbitrary a, Data a) => Proxy a -> Gen (ADTArbitrary a)
 arbitraryAdt proxy = do
   let t = typeRepTyCon . typeRep $ proxy  
   case getDataRep proxy of
@@ -113,3 +116,56 @@ arbitraryAdt proxy = do
       pure $ ADTArbitrary (tyConModule t) (tyConName t) [ConstructorArbitraryPair "Char Literal" arb]
 
     NoRep -> pure $ ADTArbitrary (tyConModule t) (tyConName t) []
+
+-- $use
+--
+-- How to use `arbitraryAdt`.
+--
+-- > {-# LANGUAGE DataDeriveTypeable #-}
+-- >
+-- > import Data.Data                     (Data)
+-- > import Data.Proxy                    (Proxy(Proxy))
+-- > import Test.QuickCheck
+-- > import Test.QuickCheck.Arbitrary.ADT (arbitraryAdt, genericArbitrary)
+-- >
+-- > -- Sum Type, multiple constructors with parameters
+-- > data Fruit
+-- >   = Apple Int
+-- >   | Orange String Int
+-- >   | PassionFruit Int String Int
+-- >   deriving (Data, Show)
+-- >
+-- > instance Arbitrary Fruit where
+-- >   arbitrary =
+-- >     oneof
+-- >       [ Apple <$> arbitrary
+-- >       , Orange <$> arbitrary <*> arbitrary
+-- >       , PassionFruit <$> arbitrary <*> arbitrary <*> arbitrary
+-- >       ]
+-- >
+-- > -- Product Type, single constructor
+-- > data Person =
+-- >   Person
+-- >     { name :: String
+-- >     , age  :: Int
+-- >     } deriving (Data, Show)
+-- > 
+-- > instance Arbitrary Person where
+-- >   arbitrary = Person <$> arbitrary <*> arbitrary
+--
+-- @
+-- λ> generate (arbitraryAdt (Proxy :: Proxy Fruit))
+-- ADTArbitrary
+--   { adtModuleName = \"Ghci1\"
+--   , adtTypeName = \"Fruit\"
+--   , adtCAPs =
+--       [ ConstructorArbitraryPair {capConstructor = \"Apple\", capArbitrary = Apple (-22)}
+--       , ConstructorArbitraryPair {capConstructor = \"Orange\", capArbitrary = Orange \"(\711992\" 27}
+--       , ConstructorArbitraryPair {capConstructor = \"PassionFruit\", capArbitrary = PassionFruit 14 \"7st\" 15}]}
+--
+-- λ> generate (arbitraryAdt (Proxy :: Proxy Person))
+-- ADTArbitrary {
+--   adtModuleName = \"Ghci1\"
+-- , adtTypeName = \"Person\"
+-- , adtCAPs = [ConstructorArbitraryPair {capConstructor = \"Person\", capArbitrary = Person {name = \"Jane Doe\", age = 15}}]}
+-- @

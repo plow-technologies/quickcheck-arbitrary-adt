@@ -1,12 +1,26 @@
 {-|
 Module      : Test.QuickCheck.Arbitrary.ADT.Legacy
-Description : Generate arbitrary values for all constructors
-Copyright   : Plow Technologies LLC
+Description : Legacy type class for random generation of abstract data types.
+              It is maintained for backwards compatability and as an optional
+              choice, but will not be developed further.
+Copyright   : (c) Plow Technologies LLC, 2016-2019
 License     : BSD3
 Maintainer  : mchaver@gmail.com
 
-Type classes to assist random generation of values for various types of
-abstract data types.
+Type classes for random generation of values for each constructor of an abstract
+data type.
+
+'ToADTArbitrary' requires a type to have a 'Generic' instance and any types used
+in its constructors have to have an 'Arbitrary' instance.
+
+The generic instance of 'ToADTArbitrary' should be considered defective.
+It does not use the 'Arbitrary' instance of a type but rather it builds a
+generic 'Arbitrary' instance using the types of its records/fields, whereas
+what the library user would expect is that it uses the 'Arbitrary' of the type
+itself.
+
+For that reason, the code in this file is now longer further developed, but will
+be continuallymaintained for backwards compatibility.
 -}
 
 {-# LANGUAGE DeriveGeneric       #-}
@@ -19,18 +33,18 @@ abstract data types.
 module Test.QuickCheck.Arbitrary.ADT.Legacy
   (
   -- * How to use this library
-  -- $use
+  -- $legacy_use
 
   -- * Data types
-  -- $datatypes
+  -- $legacy_datatypes
     ADTArbitrarySingleton(..)
 
   -- * Type classes
-  -- $typeclasses
+  -- $legacy_typeclasses
   , ToADTArbitrary(..)
 
   -- * Generic type classes
-  -- $generictypeclasses
+  -- $legacy_generictypeclasses
   , GToADTArbitrarySingleton(..)
   , GToADTArbitrary(..)
   , GArbitrary(..)
@@ -48,7 +62,7 @@ import GHC.Generics  (Generic, Constructor, Datatype, Rep, M1(M1), K1(K1),
 import Test.QuickCheck (Arbitrary, Gen, arbitrary)
 import Test.QuickCheck.Arbitrary.ADT.Types (ConstructorArbitraryPair(..), ADTArbitrary(..))
 
--- $datatypes
+-- $legacy_datatypes
 
 -- | ADTArbitrarySingleton holds the type name and one ConstructorArbitraryPair.
 data ADTArbitrarySingleton a =
@@ -65,7 +79,7 @@ instance Functor ADTArbitrarySingleton where
 instance (Arbitrary a) => Arbitrary (ADTArbitrarySingleton a) where
   arbitrary = ADTArbitrarySingleton <$> arbitrary <*> arbitrary <*> arbitrary
 
--- $typeclasses
+-- $legacy_typeclasses
 
 -- | ToADTArbitrary generalizes the production of arbitrary values for Sum types.
 -- and Product types.
@@ -93,7 +107,7 @@ class ToADTArbitrary a where
 
 
 
--- $generictypeclasses
+-- $legacy_generictypeclasses
 
 -- | GToADTArbitrarySingleton creates an arbitrary value and returns the name of the
 -- constructor that was used to create it and the type name.
@@ -260,7 +274,7 @@ instance GArbitrary rep => GArbitrary (M1 i t rep) where
 genericArbitrary :: (Generic a, GArbitrary (Rep a)) => Gen a
 genericArbitrary = to <$> gArbitrary
 
--- $use
+-- $legacy_use
 --
 -- How to use `ToADTArbitrary` with Generic.
 --
