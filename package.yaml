@@ -1,26 +1,30 @@
 name: quickcheck-arbitrary-adt
-version: 0.3.1.0
-synopsis: Generic typeclasses for generating arbitrary ADTs
-description: Improve arbitrary value generation for ADTs
+version: 1.0.0.0
+synopsis: Functions for generating arbitrary values of all the constructors of a type
+description: Functions for generating arbitrary values of all the constructors of a type
 homepage: https://github.com/plow-technologies/quickcheck-arbitrary-adt#readme
 category: Testing
 author: James M.C. Haver II
 maintainer: mchaver@gmail.com
 license: BSD3
 github: plow-technologies/quickcheck-arbitrary-adt
-copyright: 2016-2017 Plow Technologies
-stability: Beta
+copyright: 2016-2019 Plow Technologies
+
+ghc-options:
+- -Wall
+- -Werror
+- -Wincomplete-uni-patterns
+- -Wincomplete-record-updates
 
 library:
   source-dirs: src
   exposed-modules: 
   - Test.QuickCheck.Arbitrary.ADT
+  - Test.QuickCheck.Arbitrary.ADT.Legacy
+  - Test.QuickCheck.Arbitrary.ADT.Types
   dependencies:
   - base >= 4.7 && < 5
   - QuickCheck
-  ghc-options:
-  - -Wall
-#  - -Werror
 
 tests:
   test:
@@ -28,6 +32,7 @@ tests:
     source-dirs: tests
     dependencies:
     - base
+    - bytestring
     - hspec
     - lens
     - template-haskell

@@ -1,374 +1,171 @@
 {-|
 Module      : Test.QuickCheck.Arbitrary.ADT
-Description : Generate arbitrary values for all constructors
-Copyright   : Plow Technologies LLC
+Description : Generate arbitrary values for all constructors of a type.
+Copyright   : (c) Plow Technologies LLC, 2016-2019
 License     : BSD3
 Maintainer  : mchaver@gmail.com
-Stability   : Beta
 
-Type classes to assist random generation of values for various types of
-abstract data types.
+A function that randomly generates a value for each constructor of an abstract
+data type. The type requires an instance of 'Data' and 'Arbitrary'.
+
 -}
 
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Test.QuickCheck.Arbitrary.ADT (
   -- * How to use this library
   -- $use
 
-  -- * Data types
-  -- $datatypes
-    ConstructorArbitraryPair(..)
-  , ADTArbitrarySingleton(..)
+  -- * Arbitrary abstract data type functions
+  -- $functions
+    arbitraryAdt
+  , arbitraryWithConstructor
+  , arbitraryForConstructors
+
+  -- Data types
+  , ConstructorArbitraryPair(..)
   , ADTArbitrary(..)
 
-  -- * Type classes
-  -- $typeclasses
+  -- * Legacy code
+  , ADTArbitrarySingleton(..)  
+
+  -- Type classes
   , ToADTArbitrary(..)
 
-  -- * Generic type classes
-  -- $generictypeclasses
+  -- Generic type classes
   , GToADTArbitrarySingleton(..)
   , GToADTArbitrary(..)
   , GArbitrary(..)
-  , genericArbitrary
-
+  , genericArbitrary  
   ) where
 
--- base
-import Data.Typeable
-import GHC.Generics
+-- re-export
+import Test.QuickCheck.Arbitrary.ADT.Types  (ConstructorArbitraryPair(..), ADTArbitrary(..))
+import Test.QuickCheck.Arbitrary.ADT.Legacy
+  (ADTArbitrarySingleton(..), ToADTArbitrary(..), GToADTArbitrarySingleton(..),
+   GToADTArbitrary(..), GArbitrary(..), genericArbitrary)
 
--- QuickCheck
-import Test.QuickCheck.Arbitrary
-import Test.QuickCheck.Gen
+import Control.Monad   (forM)
+import Data.Data       (Data, DataRep(AlgRep, CharRep, IntRep, FloatRep, NoRep),
+                        Constr, Proxy, dataTypeConstrs, dataTypeOf, dataTypeRep,
+                        showConstr, toConstr)
+import Data.Typeable   (tyConModule, tyConName, typeRepTyCon, typeRep)
+import Test.QuickCheck (Arbitrary, Gen, arbitrary)
 
--- $datatypes
+-- $functions
 
--- | ConstructorArbitraryPair holds the construct name as a string and an
--- arbitrary instance of that constructor.
-data ConstructorArbitraryPair a =
-  ConstructorArbitraryPair
-    { capConstructor :: String
-    , capArbitrary   :: a
-    } deriving (Eq,Generic,Read,Show,Typeable)
+-- | Get a list of all of the constructors of a type. It crashes at runtime
+-- if the 'DataRep' is not 'AlgRep'.
+unsafeGetConstructors :: forall a. Data a => Proxy a -> [Constr]
+unsafeGetConstructors _proxy = dataTypeConstrs $ dataTypeOf (undefined :: a)
 
--- | fmap applies a function to `capArbitrary`
-instance Functor ConstructorArbitraryPair where
-  fmap f (ConstructorArbitraryPair c a) = ConstructorArbitraryPair c (f a)
+-- | get the dataTypeRep for a type. Useful for matching only on 'AlgRep'.
+getDataRep :: forall a. Data a => Proxy a -> DataRep
+getDataRep _proxy = dataTypeRep $ dataTypeOf (undefined :: a)
 
-instance (Arbitrary a) => Arbitrary (ConstructorArbitraryPair a) where
-  arbitrary = ConstructorArbitraryPair <$> arbitrary <*> arbitrary
+-- | Generate an arbitrary value for a given type constructor. It will loop
+-- idenfinitely until a type made with the provided constructor is found.
+-- It maybe slow on large sum types. This function is considered dangerous
+-- becausee you can provide a 'Constr' that does not much
+-- type \'a\' and it will give unexpected results. You are responsible for making
+-- sure that 'Constr' is a constructor of type \'a\'.
+arbitraryWithConstructor :: (Arbitrary a, Data a) => Constr -> Gen a
+arbitraryWithConstructor constr = do
+  a <- arbitrary
+  if constr == toConstr a
+    then pure a
+    else arbitraryWithConstructor constr
 
--- | ADTArbitrarySingleton holds the type name and one ConstructorArbitraryPair.
-data ADTArbitrarySingleton a =
-  ADTArbitrarySingleton
-    { adtasModuleName :: String
-    , adtasTypeName   :: String
-    , adtasCAP        :: ConstructorArbitraryPair a
-    } deriving (Eq,Generic,Read,Show,Typeable)
+-- | Produce a list of arbitrary values for each constructor of a type.
+-- It uses  'arbitraryWithConstructor' internally in a safe manner. The user
+-- does not  need to worry about breaking it.
+arbitraryForConstructors :: (Arbitrary a, Data a) => Proxy a -> Gen [a]
+arbitraryForConstructors proxy = do
+  case getDataRep proxy of
+    AlgRep _ -> mapM arbitraryWithConstructor $ unsafeGetConstructors proxy
+    _        -> (:[]) <$> arbitrary
 
--- | fmap applies a function to the ConstructorArbitraryPair in adtasCAP.
-instance Functor ADTArbitrarySingleton where
-  fmap f (ADTArbitrarySingleton m t c) = ADTArbitrarySingleton m t (f <$> c)
+-- | Generate an arbitrary value for each type in a constructor. This includes
+-- the module name, the type name, and a list of the constructors as 'String's
+-- paired with their arbitrarily generated value. It uses
+-- 'arbitraryWithConstructor' internally in a safe manner. The user does not
+-- need to worry about breaking it.
+arbitraryAdt :: (Arbitrary a, Data a) => Proxy a -> Gen (ADTArbitrary a)
+arbitraryAdt proxy = do
+  let t = typeRepTyCon . typeRep $ proxy  
+  case getDataRep proxy of
+    AlgRep _ -> do
+      let constructors = unsafeGetConstructors proxy
+      pairs <- forM constructors
+               (\constr -> do
+                   arb <- arbitraryWithConstructor constr
+                   pure $ ConstructorArbitraryPair (showConstr constr) arb
+               )
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) pairs
 
-instance (Arbitrary a) => Arbitrary (ADTArbitrarySingleton a) where
-  arbitrary = ADTArbitrarySingleton <$> arbitrary <*> arbitrary <*> arbitrary
+    IntRep -> do
+      arb <- arbitrary
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) [ConstructorArbitraryPair "Int Literal" arb]
 
--- | ADTArbitrary holds the type name and a ConstructorArbitraryPair
--- for each constructor.
-data ADTArbitrary a =
-  ADTArbitrary
-    { adtModuleName :: String
-    , adtTypeName   :: String
-    , adtCAPs       :: [ConstructorArbitraryPair a]
-    } deriving (Eq,Generic,Read,Show,Typeable)
+    FloatRep -> do
+      arb <- arbitrary
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) [ConstructorArbitraryPair "Float Literal" arb]
 
--- | fmap applies a function to each ConstructorArbitraryPair in adtCAPs.
-instance Functor ADTArbitrary where
-  fmap f (ADTArbitrary m t cs) = ADTArbitrary m t (fmap f <$> cs)
+    CharRep -> do
+      arb <- arbitrary
+      pure $ ADTArbitrary (tyConModule t) (tyConName t) [ConstructorArbitraryPair "Char Literal" arb]
 
-instance (Arbitrary a) => Arbitrary (ADTArbitrary a) where
-  arbitrary = ADTArbitrary <$> arbitrary <*> arbitrary <*> arbitrary
-
-
--- $typeclasses
-
--- | ToADTArbitrary generalizes the production of arbitrary values for Sum types.
--- and Product types.
-class ToADTArbitrary a where
-  -- {-# MINIMAL toADTArbitrarySingleton, toADTArbitrary #-}
-  -- | produce an arbitrary instance of one random constructor
-  toADTArbitrarySingleton :: Proxy a -> Gen (ADTArbitrarySingleton a)
-  default toADTArbitrarySingleton ::
-    ( Generic a
-    , GToADTArbitrarySingleton (Rep a)
-    )
-    => Proxy a
-    -> Gen (ADTArbitrarySingleton a)
-  toADTArbitrarySingleton _ = fmap to <$> gToADTArbitrarySingleton (Proxy :: Proxy (Rep a))
-
-  -- | produce an arbitrary instance for each constructor in type a.
-  toADTArbitrary :: Proxy a -> Gen (ADTArbitrary a)
-  default toADTArbitrary ::
-    ( Generic a
-    , GToADTArbitrary (Rep a)
-    )
-    => Proxy a
-    -> Gen (ADTArbitrary a)
-  toADTArbitrary _ = fmap to <$> gToADTArbitrary (Proxy :: Proxy (Rep a))
-
-
-
--- $generictypeclasses
-
--- | GToADTArbitrarySingleton creates an arbitrary value and returns the name of the
--- constructor that was used to create it and the type name.
-
-class GToADTArbitrarySingleton rep where
-  gToADTArbitrarySingleton :: Proxy rep -> Gen (ADTArbitrarySingleton (rep a))
-
-instance GToADTArbitrarySingleton U1 where
-  gToADTArbitrarySingleton _ = pure $ ADTArbitrarySingleton "" "" $ ConstructorArbitraryPair "" U1
-
-instance (GToADTArbitrarySingleton l, GToADTArbitrarySingleton r) => GToADTArbitrarySingleton (l :+: r) where
-  gToADTArbitrarySingleton _ = do
-    b <- arbitrary
-    if b then fmap L1 <$> gToADTArbitrarySingleton (Proxy :: Proxy l)
-         else fmap R1 <$> gToADTArbitrarySingleton (Proxy :: Proxy r)
-
-instance (GToADTArbitrarySingleton l, GToADTArbitrarySingleton r) => GToADTArbitrarySingleton (l :*: r) where
-  gToADTArbitrarySingleton _ = do
-    x <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy l)
-    y <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy r)
-    return $ ADTArbitrarySingleton "" "" $ ConstructorArbitraryPair "" (x :*: y)
-    where
-      getArb = capArbitrary . adtasCAP
-
-instance Arbitrary a => GToADTArbitrarySingleton (K1 i a) where
-  gToADTArbitrarySingleton _ =
-    ADTArbitrarySingleton
-      <$> pure ""
-      <*> pure ""
-      <*> (ConstructorArbitraryPair
-            <$> pure ""
-            <*> K1 <$> arbitrary)
-
-instance (Constructor c, GToADTArbitrarySingleton rep) => GToADTArbitrarySingleton (M1 C c rep) where
-  gToADTArbitrarySingleton _ =
-    ADTArbitrarySingleton
-      <$> pure ""
-      <*> pure ""
-      <*> (ConstructorArbitraryPair con <$> ac)
-    where
-      kRep = gToADTArbitrarySingleton (Proxy :: Proxy rep)
-      ac   = M1 . capArbitrary . adtasCAP <$> kRep
-      con = conName (undefined :: M1 C c rep ())
-
-instance (Datatype t, Typeable t, GToADTArbitrarySingleton rep) => GToADTArbitrarySingleton (M1 D t rep) where
-  gToADTArbitrarySingleton _ =
-    ADTArbitrarySingleton
-      <$> pure m
-      <*> pure t
-      <*> (ConstructorArbitraryPair
-            <$> (capConstructor . adtasCAP <$> kRep)
-            <*> ac)
-    where
-      kRep = gToADTArbitrarySingleton (Proxy :: Proxy rep)
-      ac   = M1 . capArbitrary . adtasCAP <$> kRep
-      m    = moduleName (undefined :: M1 D t rep ())
-      t    = datatypeName (undefined :: M1 D t rep ())
-
-instance GToADTArbitrarySingleton rep => GToADTArbitrarySingleton (M1 S t rep) where
-  gToADTArbitrarySingleton _ =
-    ADTArbitrarySingleton
-      <$> pure ""
-      <*> pure ""
-      <*> (ConstructorArbitraryPair
-            <$> pure ""
-            <*> ac)
-    where
-      kRep = gToADTArbitrarySingleton (Proxy :: Proxy rep)
-      ac   = M1 . capArbitrary . adtasCAP <$> kRep
-
-
--- | GToADTArbitrary is a typeclass for generalizing the creation
--- of a list of arbitrary values for each constructor of a type.  It also
--- returns the name of the constructor and the type name for reference and file
--- creation.
-
-class GToADTArbitrary rep where
-  gToADTArbitrary :: Proxy rep -> Gen (ADTArbitrary (rep a))
-
-instance GToADTArbitrary U1 where
-  gToADTArbitrary _ = pure $ ADTArbitrary "" "" [ConstructorArbitraryPair "" U1]
-
-instance (GToADTArbitrary l, GToADTArbitrary r) => GToADTArbitrary (l :+: r) where
-  gToADTArbitrary _ = do
-    a <- fmap L1 <$> gToADTArbitrary (Proxy :: Proxy l)
-    b <- fmap R1 <$> gToADTArbitrary (Proxy :: Proxy r)
-    return $ ADTArbitrary "" "" (adtCAPs a ++ adtCAPs b)
-
-instance (GToADTArbitrarySingleton l, GToADTArbitrarySingleton r) => GToADTArbitrary (l :*: r) where
-  gToADTArbitrary _ = do
-    x <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy l)
-    y <- getArb <$> gToADTArbitrarySingleton (Proxy :: Proxy r)
-    return $ ADTArbitrary "" "" [ConstructorArbitraryPair "" (x :*: y)]
-    where
-      getArb = capArbitrary . adtasCAP
-
-instance Arbitrary a => GToADTArbitrary (K1 i a) where
-  gToADTArbitrary _ =
-    ADTArbitrary
-      <$> pure ""
-      <*> pure ""
-      <*> (:[]) <$> genCap
-    where
-      arb    = arbitrary :: Gen a
-      genCap = ConstructorArbitraryPair <$> pure "" <*> (K1 <$> arb)
-
--- constructor level
-instance (Constructor c, GToADTArbitrary rep) => GToADTArbitrary (M1 C c rep) where
-  gToADTArbitrary _ = ADTArbitrary <$> pure "" <*> pure "" <*> (:[]) . ConstructorArbitraryPair con <$> ac
-    where
-      kRep = gToADTArbitrary (Proxy :: Proxy rep)
-      ac   = M1 . capArbitrary . head . adtCAPs <$> kRep
-      con  = conName (undefined :: M1 C c rep ())
-
--- type level
-instance (Datatype t, GToADTArbitrary rep) => GToADTArbitrary (M1 D t rep) where
-  gToADTArbitrary _ =  ADTArbitrary <$> pure m <*> pure t <*> m1caps
-    where
-      kRep   = gToADTArbitrary (Proxy :: Proxy rep)
-      caps   = adtCAPs <$> kRep
-      m1caps = (fmap . fmap) M1 <$> caps
-      m      = moduleName (undefined :: M1 D t rep ())
-      t      = datatypeName (undefined :: M1 D t rep ())
-
--- selector level
-instance GToADTArbitrary rep => GToADTArbitrary (M1 S t rep) where
-  gToADTArbitrary _ =
-    ADTArbitrary
-      <$> pure ""
-      <*> pure ""
-      <*> (:[]) <$> (ConstructorArbitraryPair "" <$> ac)
-    where
-      kRep = gToADTArbitrary (Proxy :: Proxy rep)
-      ac   = M1 . capArbitrary . head . adtCAPs <$> kRep
-
-
--- | GArbitrary is a typeclass for generalizing the creation of single arbitrary
--- product and sum types. It creates an arbitrary generating function of this
--- style: @TypeName \<$\> arbitrary \<*\> arbitrary@.
-
-class GArbitrary rep where
-  gArbitrary :: Gen (rep a)
-
-instance GArbitrary U1 where
-  gArbitrary = pure U1
-
-instance (GArbitrary l, GArbitrary r) => GArbitrary (l :+: r) where
-  gArbitrary = do
-    b <- arbitrary
-    if b then L1 <$> gArbitrary
-         else R1 <$> gArbitrary
-
-instance (GArbitrary l, GArbitrary r) => GArbitrary (l :*: r) where
-  gArbitrary = (:*:) <$> gArbitrary <*> gArbitrary
-
-instance Arbitrary a => GArbitrary (K1 i a) where
-  gArbitrary = K1 <$> arbitrary
-
-instance GArbitrary rep => GArbitrary (M1 i t rep) where
-  gArbitrary = M1 <$> gArbitrary
-
--- | Create a arbitrary generator for a specified a type in a naive way. Please
--- be careful when using this function, particularly for recursive types.
-genericArbitrary :: (Generic a, GArbitrary (Rep a)) => Gen a
-genericArbitrary = to <$> gArbitrary
+    NoRep -> pure $ ADTArbitrary (tyConModule t) (tyConName t) []
 
 -- $use
 --
--- How to use `ToADTArbitrary` with Generic.
+-- How to use `arbitraryAdt`.
 --
--- > {-# LANGUAGE DeriveGeneric #-}
+-- > {-# LANGUAGE DataDeriveTypeable #-}
 -- >
--- > import Data.Proxy
--- > import GHC.Generics
+-- > import Data.Data                     (Data)
+-- > import Data.Proxy                    (Proxy(Proxy))
 -- > import Test.QuickCheck
--- > import Test.QuickCheck.Arbitrary.ADT
+-- > import Test.QuickCheck.Arbitrary.ADT (arbitraryAdt, genericArbitrary)
 -- >
 -- > -- Sum Type, multiple constructors with parameters
 -- > data Fruit
 -- >   = Apple Int
 -- >   | Orange String Int
 -- >   | PassionFruit Int String Int
--- >   deriving (Generic, Show)
+-- >   deriving (Data, Show)
+-- >
+-- > instance Arbitrary Fruit where
+-- >   arbitrary =
+-- >     oneof
+-- >       [ Apple <$> arbitrary
+-- >       , Orange <$> arbitrary <*> arbitrary
+-- >       , PassionFruit <$> arbitrary <*> arbitrary <*> arbitrary
+-- >       ]
 -- >
 -- > -- Product Type, single constructor
 -- > data Person =
 -- >   Person
 -- >     { name :: String
 -- >     , age  :: Int
--- >     } deriving (Generic, Show)
---
--- Any type that implements `ToADTArbitrary` must also implement `Arbitrary`.
--- These examples all require that the data type is an instance of `Generic`.
---
--- @
--- instance Arbitrary Fruit where
---   arbitrary = `genericArbitrary`
---
--- instance `ToADTArbitrary` Fruit
---
--- instance Arbitrary Person where
---   arbitrary = `genericArbitrary`
---
--- instance `ToADTArbitrary` Person
--- @
---
--- Now we can use `toADTArbitrarySingleton` to produce an arbitrary value of
--- one random constructor along with some metadata. `toADTArbitrary` will
--- produce an arbitrary value for each constructor and return it along with
--- a String of the constructor name.
+-- >     } deriving (Data, Show)
+-- > 
+-- > instance Arbitrary Person where
+-- >   arbitrary = Person <$> arbitrary <*> arbitrary
 --
 -- @
--- λ> generate (toADTArbitrarySingleton (Proxy :: Proxy Fruit))
--- ADTArbitrarySingleton {
---   adtasModuleName = \"Ghci1\"
--- , adtasTypeName = \"Fruit\"
--- , adtasCAP = ConstructorArbitraryPair {
---     capConstructor = \"Apple\", capArbitrary = Apple 30}}
+-- λ> generate (arbitraryAdt (Proxy :: Proxy Fruit))
+-- ADTArbitrary
+--   { adtModuleName = \"Ghci1\"
+--   , adtTypeName = \"Fruit\"
+--   , adtCAPs =
+--       [ ConstructorArbitraryPair {capConstructor = \"Apple\", capArbitrary = Apple (-22)}
+--       , ConstructorArbitraryPair {capConstructor = \"Orange\", capArbitrary = Orange \"(\711992\" 27}
+--       , ConstructorArbitraryPair {capConstructor = \"PassionFruit\", capArbitrary = PassionFruit 14 \"7st\" 15}]}
 --
--- λ> generate (toADTArbitrary (Proxy :: Proxy Fruit))
--- ADTArbitrary {
---   adtModuleName = \"Ghci1\"
--- , adtTypeName = \"Fruit\"
--- , adtCAPs = [
---     ConstructorArbitraryPair {
---         capConstructor = \"Apple\"
---       , capArbitrary = Apple 17}
---   , ConstructorArbitraryPair {
---         capConstructor = \"Orange\"
---       , capArbitrary = Orange \"abcdef\" 18}
---   , ConstructorArbitraryPair {
---         capConstructor = \"PassionFruit\"
---       , capArbitrary = PassionFruit 16 "datadata" 6}]}
---
--- λ> generate (toADTArbitrarySingleton (Proxy :: Proxy Person))
--- ADTArbitrarySingleton {
---   adtasModuleName = \"Ghci1\"
--- , adtasTypeName = \"Person\"
--- , adtasCAP = ConstructorArbitraryPair {capConstructor = \"Person\", capArbitrary = Person {name = "John Doe", age = 30}}}
---
--- λ> generate (toADTArbitrary (Proxy :: Proxy Person))
+-- λ> generate (arbitraryAdt (Proxy :: Proxy Person))
 -- ADTArbitrary {
 --   adtModuleName = \"Ghci1\"
 -- , adtTypeName = \"Person\"
--- , adtCAPs = [ConstructorArbitraryPair {capConstructor = \"Person\", capArbitrary = Person {name = "Jane Doe", age = 15}}]}
+-- , adtCAPs = [ConstructorArbitraryPair {capConstructor = \"Person\", capArbitrary = Person {name = \"Jane Doe\", age = 15}}]}
 -- @
