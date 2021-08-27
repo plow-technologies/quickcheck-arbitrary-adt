@@ -157,7 +157,7 @@ allConstructors _ = allConstructors' $ from (undefined :: a)
 
 
 suchThatLimitTries :: Int -> Gen a -> (a -> Bool) -> Gen (Maybe a)
-gen `suchThatLimitTries n` p = try n
+suchThatLimitTries n gen p = try n
  where
   try m
     | m > 0 = do
@@ -172,9 +172,10 @@ toADTArbitraryForConstructors constrs p =
     <$> pure m
     <*> pure t
     <*> (catMaybes <$> sequence
-      [((ConstructorArbitraryPair c) <$>) <$> arbitrary `suchThatLimitTries 500` ((== c) . constructorName) | c <- constrs])
+      [((ConstructorArbitraryPair c) <$>) <$> arbitrary `suchThatLimited` ((== c) . constructorName) | c <- constrs])
   where
     (m, t) = moduleAndDataName p
+    suchThatLimited = suchThatLimitTries 500
 
 -- | GArbitrary is a typeclass for generalizing the creation of single arbitrary
 -- product and sum types. It creates an arbitrary generating function of this
