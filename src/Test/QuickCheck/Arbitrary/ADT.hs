@@ -106,7 +106,7 @@ class ToADTArbitrary a where
   -- {-# MINIMAL toADTArbitrarySingleton, toADTArbitrary #-}
   -- | produce an arbitrary instance of one random constructor
   toADTArbitrarySingleton :: Proxy a -> Gen (ADTArbitrarySingleton a)
-  default toADTArbitrarySingleton :: forall a. (Generic a, ToADTArbitraryHelpers (Rep a), Arbitrary a) => Proxy a -> Gen (ADTArbitrarySingleton a)
+  default toADTArbitrarySingleton :: (Generic a, ToADTArbitraryHelpers (Rep a), Arbitrary a) => Proxy a -> Gen (ADTArbitrarySingleton a)
   toADTArbitrarySingleton p =
     ADTArbitrarySingleton
       <$> pure m
