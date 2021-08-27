@@ -15,7 +15,6 @@ abstract data types.
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Test.QuickCheck.Arbitrary.ADT (
@@ -43,6 +42,7 @@ module Test.QuickCheck.Arbitrary.ADT (
 
 -- base
 import Data.Typeable
+import Data.Maybe (catMaybes)
 import GHC.Generics
 
 -- QuickCheck
@@ -124,7 +124,7 @@ class ToADTArbitrary a where
 
 -- $generictypeclasses
 
-class ToADTArbitraryHelpers (f :: * -> *) where
+class ToADTArbitraryHelpers f where
   moduleAndDataName' :: f a -> (String, String)
   constructorName' :: f a -> String
   allConstructors' :: f a -> [String]
@@ -159,8 +159,8 @@ toADTArbitraryForConstructors constrs p =
   ADTArbitrary
     <$> pure m
     <*> pure t
-    <*> sequence
-      [ConstructorArbitraryPair c <$> arbitrary `suchThat` ((== c) . constructorName) | c <- constrs]
+    <*> (catMaybes <$> sequence
+      [ConstructorArbitraryPair c <$> arbitrary `suchThatMaybe` ((== c) . constructorName) | c <- constrs])
   where
     (m, t) = moduleAndDataName p
 
