@@ -154,13 +154,25 @@ constructorName = constructorName' . from
 allConstructors :: forall a. (Generic a, ToADTArbitraryHelpers (Rep a)) => Proxy a -> [String]
 allConstructors _ = allConstructors' $ from (undefined :: a)
 
+
+
+suchThatLimitTries :: Int -> Gen a -> (a -> Bool) -> Gen (Maybe a)
+gen `suchThatLimitTries n` p = try n
+ where
+  try m
+    | m > 0 = do
+        x <- gen
+        if p x then return (Just x) else try (m-1)
+    | otherwise = return Nothing
+
+
 toADTArbitraryForConstructors :: (Generic a, ToADTArbitraryHelpers (Rep a), Arbitrary a) => [String] -> Proxy a -> Gen (ADTArbitrary a)
 toADTArbitraryForConstructors constrs p =
   ADTArbitrary
     <$> pure m
     <*> pure t
     <*> (catMaybes <$> sequence
-      [((ConstructorArbitraryPair c) <$>) <$> (resize 5000 $ arbitrary `suchThatMaybe` ((== c) . constructorName)) | c <- constrs])
+      [((ConstructorArbitraryPair c) <$>) <$> arbitrary `suchThatLimitTries 500` ((== c) . constructorName) | c <- constrs])
   where
     (m, t) = moduleAndDataName p
 
