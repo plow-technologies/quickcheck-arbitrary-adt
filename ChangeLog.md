@@ -1,5 +1,9 @@
 # Revision history for quickcheck-arbitrary-adt
 
+## 0.3.2.0  -- 2021-08-27
+
+* Switch to using pre-defined instance of Arbitrary in the default implementations of `toADTArbitrarySingleton` and `toADTArbitrary`
+
 ## 0.3.1.0  -- 2018-01-04
 
 * Remove compiler flags 'Wredundant-constraints' and 'fprint-potential-instances'.
