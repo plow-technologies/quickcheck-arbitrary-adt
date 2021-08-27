@@ -175,7 +175,7 @@ toADTArbitraryForConstructors constrs p =
       [((ConstructorArbitraryPair c) <$>) <$> arbitrary `suchThatLimited` ((== c) . constructorName) | c <- constrs])
   where
     (m, t) = moduleAndDataName p
-    suchThatLimited = suchThatLimitTries 500
+    suchThatLimited = suchThatLimitTries (20 * length constrs)
 
 -- | GArbitrary is a typeclass for generalizing the creation of single arbitrary
 -- product and sum types. It creates an arbitrary generating function of this
