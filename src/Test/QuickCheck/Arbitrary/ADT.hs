@@ -160,7 +160,7 @@ toADTArbitraryForConstructors constrs p =
     <$> pure m
     <*> pure t
     <*> (catMaybes <$> sequence
-      [ConstructorArbitraryPair c <$> arbitrary `suchThatMaybe` ((== c) . constructorName) | c <- constrs])
+      [((ConstructorArbitraryPair c) <$>) <$> arbitrary `suchThatMaybe` ((== c) . constructorName) | c <- constrs])
   where
     (m, t) = moduleAndDataName p
 
