@@ -1,50 +1,48 @@
-{-|
-Module      : Test.QuickCheck.Arbitrary.ADT
-Description : Generate arbitrary values for all constructors
-Copyright   : Plow Technologies LLC
-License     : BSD3
-Maintainer  : mchaver@gmail.com
-Stability   : Beta
-
-Type classes to assist random generation of values for various types of
-abstract data types.
--}
-
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Test.QuickCheck.Arbitrary.ADT (
-  -- * How to use this library
-  -- $use
+-- |
+-- Module      : Test.QuickCheck.Arbitrary.ADT
+-- Description : Generate arbitrary values for all constructors
+-- Copyright   : Plow Technologies LLC
+-- License     : BSD3
+-- Maintainer  : mchaver@gmail.com
+-- Stability   : Beta
+--
+-- Type classes to assist random generation of values for various types of
+-- abstract data types.
+module Test.QuickCheck.Arbitrary.ADT
+  ( -- * How to use this library
+    -- $use
 
-  -- * Data types
-  -- $datatypes
-    ConstructorArbitraryPair(..)
-  , ADTArbitrarySingleton(..)
-  , ADTArbitrary(..)
+    -- * Data types
+    -- $datatypes
+    ConstructorArbitraryPair (..),
+    ADTArbitrarySingleton (..),
+    ADTArbitrary (..),
 
-  -- * Type classes
-  -- $typeclasses
-  , ToADTArbitrary(..)
+    -- * Type classes
+    -- $typeclasses
+    ToADTArbitrary (..),
 
-  -- * Generic type classes
-  -- $generictypeclasses
-  , toADTArbitraryForConstructors
-  , ToADTArbitraryHelpers (..)
-  , GArbitrary(..)
-  , genericArbitrary
-
-  ) where
+    -- * Generic type classes
+    -- $generictypeclasses
+    toADTArbitraryForConstructors,
+    ToADTArbitraryHelpers (..),
+    GArbitrary (..),
+    genericArbitrary,
+  )
+where
 
 -- base
-import Data.Typeable
-import Data.Maybe (catMaybes)
-import GHC.Generics
 
+import Data.Maybe (catMaybes)
+import Data.Typeable
+import GHC.Generics
 -- QuickCheck
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen
@@ -53,11 +51,11 @@ import Test.QuickCheck.Gen
 
 -- | ConstructorArbitraryPair holds the construct name as a string and an
 -- arbitrary instance of that constructor.
-data ConstructorArbitraryPair a =
-  ConstructorArbitraryPair
-    { capConstructor :: String
-    , capArbitrary   :: a
-    } deriving (Eq,Generic,Read,Show,Typeable)
+data ConstructorArbitraryPair a = ConstructorArbitraryPair
+  { capConstructor :: String,
+    capArbitrary :: a
+  }
+  deriving (Eq, Generic, Read, Show, Typeable)
 
 -- | fmap applies a function to `capArbitrary`
 instance Functor ConstructorArbitraryPair where
@@ -67,12 +65,12 @@ instance (Arbitrary a) => Arbitrary (ConstructorArbitraryPair a) where
   arbitrary = ConstructorArbitraryPair <$> arbitrary <*> arbitrary
 
 -- | ADTArbitrarySingleton holds the type name and one ConstructorArbitraryPair.
-data ADTArbitrarySingleton a =
-  ADTArbitrarySingleton
-    { adtasModuleName :: String
-    , adtasTypeName   :: String
-    , adtasCAP        :: ConstructorArbitraryPair a
-    } deriving (Eq,Generic,Read,Show,Typeable)
+data ADTArbitrarySingleton a = ADTArbitrarySingleton
+  { adtasModuleName :: String,
+    adtasTypeName :: String,
+    adtasCAP :: ConstructorArbitraryPair a
+  }
+  deriving (Eq, Generic, Read, Show, Typeable)
 
 -- | fmap applies a function to the ConstructorArbitraryPair in adtasCAP.
 instance Functor ADTArbitrarySingleton where
@@ -83,12 +81,12 @@ instance (Arbitrary a) => Arbitrary (ADTArbitrarySingleton a) where
 
 -- | ADTArbitrary holds the type name and a ConstructorArbitraryPair
 -- for each constructor.
-data ADTArbitrary a =
-  ADTArbitrary
-    { adtModuleName :: String
-    , adtTypeName   :: String
-    , adtCAPs       :: [ConstructorArbitraryPair a]
-    } deriving (Eq,Generic,Read,Show,Typeable)
+data ADTArbitrary a = ADTArbitrary
+  { adtModuleName :: String,
+    adtTypeName :: String,
+    adtCAPs :: [ConstructorArbitraryPair a]
+  }
+  deriving (Eq, Generic, Read, Show, Typeable)
 
 -- | fmap applies a function to each ConstructorArbitraryPair in adtCAPs.
 instance Functor ADTArbitrary where
@@ -97,13 +95,13 @@ instance Functor ADTArbitrary where
 instance (Arbitrary a) => Arbitrary (ADTArbitrary a) where
   arbitrary = ADTArbitrary <$> arbitrary <*> arbitrary <*> arbitrary
 
-
 -- $typeclasses
 
 -- | ToADTArbitrary generalizes the production of arbitrary values for Sum types.
 -- and Product types.
 class ToADTArbitrary a where
   -- {-# MINIMAL toADTArbitrarySingleton, toADTArbitrary #-}
+
   -- | produce an arbitrary instance of one random constructor
   toADTArbitrarySingleton :: Proxy a -> Gen (ADTArbitrarySingleton a)
   default toADTArbitrarySingleton :: (Generic a, ToADTArbitraryHelpers (Rep a), Arbitrary a) => Proxy a -> Gen (ADTArbitrarySingleton a)
@@ -121,9 +119,10 @@ class ToADTArbitrary a where
   toADTArbitrary p =
     toADTArbitraryForConstructors (allConstructors p) p
 
-
 -- $generictypeclasses
 
+-- | ToADTArbitraryHelpers is a typeclass for getting the module name, type name and constructors 
+-- of a given type as String.
 class ToADTArbitraryHelpers f where
   moduleAndDataName' :: f a -> (String, String)
   constructorName' :: f a -> String
@@ -154,25 +153,26 @@ constructorName = constructorName' . from
 allConstructors :: forall a. (Generic a, ToADTArbitraryHelpers (Rep a)) => Proxy a -> [String]
 allConstructors _ = allConstructors' $ from (undefined :: a)
 
-
-
+-- | This function is a custom version of `subchThat` which retries `n`
+-- number of times before giving up.
 suchThatLimitTries :: Int -> Gen a -> (a -> Bool) -> Gen (Maybe a)
 suchThatLimitTries n gen p = try n
- where
-  try m
-    | m > 0 = do
+  where
+    try m
+      | m > 0 = do
         x <- gen
-        if p x then return (Just x) else try (m-1)
-    | otherwise = return Nothing
-
+        if p x then return (Just x) else try (m - 1)
+      | otherwise = return Nothing
 
 toADTArbitraryForConstructors :: (Generic a, ToADTArbitraryHelpers (Rep a), Arbitrary a) => [String] -> Proxy a -> Gen (ADTArbitrary a)
 toADTArbitraryForConstructors constrs p =
   ADTArbitrary
     <$> pure m
     <*> pure t
-    <*> (catMaybes <$> sequence
-      [((ConstructorArbitraryPair c) <$>) <$> arbitrary `suchThatLimited` ((== c) . constructorName) | c <- constrs])
+    <*> ( catMaybes
+            <$> sequence
+              [((ConstructorArbitraryPair c) <$>) <$> arbitrary `suchThatLimited` ((== c) . constructorName) | c <- constrs]
+        )
   where
     (m, t) = moduleAndDataName p
     suchThatLimited = suchThatLimitTries (20 * length constrs)
@@ -180,7 +180,6 @@ toADTArbitraryForConstructors constrs p =
 -- | GArbitrary is a typeclass for generalizing the creation of single arbitrary
 -- product and sum types. It creates an arbitrary generating function of this
 -- style: @TypeName \<$\> arbitrary \<*\> arbitrary@.
-
 class GArbitrary rep where
   gArbitrary :: Gen (rep a)
 
@@ -190,8 +189,9 @@ instance GArbitrary U1 where
 instance (GArbitrary l, GArbitrary r) => GArbitrary (l :+: r) where
   gArbitrary = do
     b <- arbitrary
-    if b then L1 <$> gArbitrary
-         else R1 <$> gArbitrary
+    if b
+      then L1 <$> gArbitrary
+      else R1 <$> gArbitrary
 
 instance (GArbitrary l, GArbitrary r) => GArbitrary (l :*: r) where
   gArbitrary = (:*:) <$> gArbitrary <*> gArbitrary
